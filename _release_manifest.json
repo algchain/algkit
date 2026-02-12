@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5296547,
+  "total_bytes": 5298115,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -120,8 +120,8 @@
     },
     {
       "path": "platokit.html",
-      "size": 132417,
-      "sha256": "6f7b15ece71c150411df89afa6390a9c757c3aef41776ab1ff85305fb1eef7b5"
+      "size": 132716,
+      "sha256": "b3966e19bc0ab8d7841a7039cc0eb436094ae6ae55367b199aab6bc06335025b"
     },
     {
       "path": "platokit_compiler.js",
@@ -135,8 +135,8 @@
     },
     {
       "path": "README.md",
-      "size": 4804,
-      "sha256": "d0c6cee7fe5012a6d7e00b82f69abf4a663cad915e022b5195c1a29f898ee5a4"
+      "size": 6073,
+      "sha256": "d91520b5b9636d13c8ec87f7cb241a33ecfab96025b6f91f241983d1859fff4a"
     },
     {
       "path": "SAMPLE-CHAT_VIDEO_KIT.html",
