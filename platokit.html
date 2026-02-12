@@ -1650,7 +1650,23 @@ iframe{border:1px solid #0f0;width:100%;height:390px;display:block;background:#0
 
     function loadCapForViewport(viewport, capType, capUrl, fileContent, fileName) {
       const catalogEntry = CAP_CATALOG[capType];
-      const url = capUrl || (catalogEntry ? catalogEntry.url : null);
+      let url = capUrl || (catalogEntry ? catalogEntry.url : null);
+
+      // Rewrite GitHub blob URLs to raw (CORS-friendly)
+      if (url && !fileContent) {
+        const gh = rewriteGithub(url);
+        if (gh) {
+          log(`platokit: rewriting GitHub URL for skin: ${gh.name}`);
+          // Fetch raw content and load as srcdoc (avoids cross-origin iframe issues)
+          fetch(gh.raw).then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(html => {
+            loadCapForViewport(viewport, capType, null, html, gh.name);
+          }).catch(err => {
+            log(`platokit: failed to fetch ${gh.raw}: ${err}`);
+            sendToSkin('toast', { message: `Failed to load from GitHub: ${err.message}`, type: 'error' });
+          });
+          return;
+        }
+      }
 
       if (!fileContent && !url) { log(`platokit: unknown cap type: ${capType}`); sendToSkin('toast', { message: `Unknown cap type: ${capType}`, type: 'error' }); return; }
 

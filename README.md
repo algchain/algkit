@@ -2,7 +2,7 @@
 
 A private App Store for your browser. Drag and drop curated open-source tools and use them in a private sandbox — even when offline. It's **one HTML file**.
 
-**[Open Your Toolkit](https://algchain.github.io/algkit/platokit.html)** | [Drag this addon samplel](https://github.com/algchain/algkit/blob/main/caps/caps_samples/sample_ping.html) | [Browse Apps](https://github.com/algchain/algkit/caps/readme.md)
+**<a href="https://algchain.github.io/algkit/platokit.html" target="_blank">Open Your Toolkit</a>** | [Drag this addon sample](https://raw.githubusercontent.com/algchain/algkit/refs/heads/main/caps/caps_samples/sample_ping.html) | [Browse Apps](https://github.com/algchain/algkit/blob/main/caps/readme.md)
 
 ---
 

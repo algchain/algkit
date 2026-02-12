@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5295539,
+  "total_bytes": 5296547,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -100,8 +100,8 @@
     },
     {
       "path": "hubskins/skin_hub.html",
-      "size": 49613,
-      "sha256": "2f971a284abbd2035f9336d07f947ccc29e107617cd3a55381e59fb7548a27fc"
+      "size": 49816,
+      "sha256": "09e1e2f08167153e000b37b81bcb5545b750e55b3f28db7f5f4a5de0fef0410c"
     },
     {
       "path": "index.html",
@@ -120,8 +120,8 @@
     },
     {
       "path": "platokit.html",
-      "size": 131669,
-      "sha256": "8d4a9e8e73ff34721b8b43fb9678d5e7f47f865ebf5ec5318e3d9d256aa354ee"
+      "size": 132417,
+      "sha256": "6f7b15ece71c150411df89afa6390a9c757c3aef41776ab1ff85305fb1eef7b5"
     },
     {
       "path": "platokit_compiler.js",
@@ -135,8 +135,8 @@
     },
     {
       "path": "README.md",
-      "size": 4747,
-      "sha256": "d7c4199c74608004f1284504f784a3422c30436329c767482114a83f81319f1e"
+      "size": 4804,
+      "sha256": "d0c6cee7fe5012a6d7e00b82f69abf4a663cad915e022b5195c1a29f898ee5a4"
     },
     {
       "path": "SAMPLE-CHAT_VIDEO_KIT.html",

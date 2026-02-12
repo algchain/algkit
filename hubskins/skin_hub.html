@@ -1158,7 +1158,9 @@ description: Studio skin — sidebar nav, viewport layout, cap routing
                 const iframe = document.createElement('iframe');
                 iframe.style.cssText = 'width:100%;height:100%;border:none;';
                 // Match hub's default cap permissions (allow popups for auth flows like Puter.js)
-                iframe.sandbox = 'allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox';
+                // allow-same-origin needed for caps using localStorage, fetch, Puter.js auth
+                // Security note: caps in skin are curated/trusted from release manifest
+                iframe.sandbox = 'allow-scripts allow-same-origin allow-modals allow-popups allow-popups-to-escape-sandbox';
 
                 // Track for message routing
                 this.viewportIframes[data.viewport] = iframe;
