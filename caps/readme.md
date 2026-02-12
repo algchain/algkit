@@ -95,6 +95,22 @@ requires: []
 
 Save that as `sample_my-app.html`, drag it into your workspace, and it works.
 
+### Naming Your App
+
+Files follow the pattern `kind_name_suffix.html`:
+
+```
+kind_name_kit.html           Standard released app (generic/official)
+kind_name_username.html      Your personal version (e.g. chat_video_alice.html)
+```
+
+The third segment identifies who made it or what variant it is:
+- `_kit` — generic/official release
+- `_username` — your GitHub username (e.g. `chat_video_bob.html`)
+- `_INSECURE` — flagged as not release-safe (development only)
+
+This way the same base tool can have multiple versions from different contributors, and the filename tells you who made it at a glance.
+
 ## Privacy
 
 Every app runs in a sandboxed `<iframe>` with restricted permissions. Apps cannot:

@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
-  "file_count": 27,
-  "total_bytes": 5294751,
+  "file_count": 28,
+  "total_bytes": 5295539,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -90,8 +90,8 @@
     },
     {
       "path": "caps/readme.md",
-      "size": 4502,
-      "sha256": "cf3190f9b31039cb62c177fc89318bb41b772e6bec3e23731ebf556275fd888d"
+      "size": 5122,
+      "sha256": "6a67efed5281a8418c0160d26ed3052335ec9faaeba8cbc27cbaba69b71aadf5"
     },
     {
       "path": "dev_sets.json",
@@ -102,6 +102,11 @@
       "path": "hubskins/skin_hub.html",
       "size": 49613,
       "sha256": "2f971a284abbd2035f9336d07f947ccc29e107617cd3a55381e59fb7548a27fc"
+    },
+    {
+      "path": "index.html",
+      "size": 168,
+      "sha256": "5c47f3c8516427bcb5f0f8993d55e421d2b2a394104753adbd3ec81294f020d6"
     },
     {
       "path": "js/platokit_debug.js",
