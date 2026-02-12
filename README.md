@@ -2,7 +2,7 @@
 
 A private App Store for your browser. Drag and drop curated open-source tools and use them in a private sandbox — even when offline. It's **one HTML file**.
 
-**<a href="https://algchain.github.io/algkit/platokit.html" target="_blank">Open Your Toolkit</a>** | [Drag this addon sample](https://raw.githubusercontent.com/algchain/algkit/refs/heads/main/caps/caps_samples/sample_ping.html) | [Browse Apps](https://github.com/algchain/algkit/blob/main/caps/readme.md)
+**<a href="https://algchain.github.io/algkit/platokit.html" target="_blank">Open Your Toolkit</a>** | [Drag this addon sample](https://github.com/algchain/algkit/refs/heads/main/caps/chats/chat_gateway-allenai_kit.html) | [Browse Apps](https://github.com/algchain/algkit/blob/main/caps/readme.md)
 
 ---
 
@@ -23,9 +23,17 @@ A private App Store for your browser. Drag and drop curated open-source tools an
 - Run a private LLM chat that never sends your data to a third party
 - Set up a peer-to-peer video call room with no accounts and no server
 
+
+<p align="center">
+  <img src="assets/media/screen demo normal medium.png" width="700" alt="My diagram">
+</p>
+
 ---
 
 ## How It Works
+<p align="center">
+  <img align="right" src="assets/media/swipe 1mb webp.webp" width="300" alt="My diagram">
+</p>
 
 1. **Open `platokit.html`** in any browser — from a local file, a USB drive, or the live link above.
 2. **Drag and drop** `.html` tool files into your workspace, or pick from the sidebar.
@@ -39,6 +47,9 @@ Each tool is a standalone `.html` capability file. You can inspect the source, m
 ---
 
 ## Included Tools
+<p align="center">
+  <img align="right" src="assets/media/screen demo apps paint.png" width="450" alt="My diagram">
+</p>
 
 | Tool | What It Does |
 |------|-------------|
@@ -57,7 +68,7 @@ Each tool is a standalone `.html` capability file. You can inspect the source, m
 
 Repo contributions welcomed! Re-skin the UI, add more micro-apps, link your own code and let's make best-in-class tools available to everyone. After all, a single-page smart contract can change an entire industry.
 
-<details>
+<details open>
 <summary>Project structure, naming conventions, and how to add tools</summary>
 
 ### Structure
@@ -116,3 +127,5 @@ python RUN_tests.py --quick
 ## License
 
 MIT
+
+
