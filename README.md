@@ -30,37 +30,56 @@ A private App Store for your browser. Drag and drop curated open-source tools an
 
 ---
 
-## How It Works
-<p align="center">
-  <img align="right" src="assets/media/swipe 1mb webp.webp" width="300" alt="My diagram">
-</p>
+<h2>How It Works</h2>
 
-1. **Open `platokit.html`** in any browser — from a local file, a USB drive, or the live link above.
-2. **Drag and drop** `.html` tool files into your workspace, or pick from the sidebar.
-3. **Tools run sandboxed** in your browser. No installs, no servers, no tracking.
-4. **Share tools** by sharing files. Fork this repo to build your own toolkit.
-
-Each tool is a standalone `.html` capability file. You can inspect the source, modify it, or write your own. PlatoKit loads them into isolated sandboxes and wires them together via message passing.
-
-**Want to make this better? [Contribute directly to this repo](https://github.com/algchain/algkit) with your own tools or designs.**
+<table>
+  <tr>
+    <td valign="top" width="50%">
+      <ol>
+        <li><b>Open <code>platokit.html</code></b> in any browser — from a local file, a USB drive, or the live link above.</li>
+        <li><b>Drag and drop</b> <code>.html</code> tool files into your workspace, or pick from the sidebar.</li>
+        <li><b>Tools run sandboxed</b> in your browser. No installs, no servers, no tracking.</li>
+        <li><b>Share tools</b> by sharing files. Fork this repo to build your own toolkit.</li>
+      </ol>
+      <p>
+        Each tool is a standalone <code>.html</code> capability file. You can inspect the source, modify it, or write your own.
+        PlatoKit loads them into isolated sandboxes and wires them together via message passing.
+      </p>
+      <p><b>Want to make this better? <a href="https://github.com/algchain/algkit">Contribute directly to this repo</a> with your own tools or designs.</b></p>
+    </td>
+    <td valign="middle" width="38%" align="right">
+      <img src="assets/media/swipe%201mb%20webp.webp" width="320" alt="Swipe demo">
+    </td>
+  </tr>
+</table>
 
 ---
+<h2>Included Tools</h2>
 
-## Included Tools
-<p align="center">
-  <img align="right" src="assets/media/screen demo apps paint.png" width="450" alt="My diagram">
-</p>
+<table>
+  <tr>
+    <td valign="top" width="55%">
+      <table>
+        <tr>
+          <th align="left">Tool</th>
+          <th align="left">What It Does</th>
+        </tr>
+        <tr><td><b>AI Chat</b></td><td>Chat with Allen AI language models, privately via Puter.js</td></tr>
+        <tr><td><b>Video Call</b></td><td>Peer-to-peer encrypted video/text chat (WebRTC + MQTT)</td></tr>
+        <tr><td><b>Help Hotline</b></td><td>Submit help requests, routed to chat or AI</td></tr>
+        <tr><td><b>Search</b></td><td>Discover and browse all available tools</td></tr>
+        <tr><td><b>Storage</b></td><td>Key-value storage that persists across sessions</td></tr>
+        <tr><td><b>Message Bus</b></td><td>Broadcast messages between tools</td></tr>
+        <tr><td><b>Export</b></td><td>Save your workspace as HTML, JSON, or a bookmarklet</td></tr>
+        <tr><td><b>Samples</b></td><td>Ping, echo, clock, counter, storage — starter examples to learn from</td></tr>
+      </table>
+    </td>
+    <td valign="top" width="100%" align="right">
+      <img src="assets/media/screen%20demo%20apps%20paint.png" width="450" alt="Demo apps">
+    </td>
+  </tr>
+</table>
 
-| Tool | What It Does |
-|------|-------------|
-| AI Chat | Chat with Allen AI language models, privately via Puter.js |
-| Video Call | Peer-to-peer encrypted video/text chat (WebRTC + MQTT) |
-| Help Hotline | Submit help requests, routed to chat or AI |
-| Search | Discover and browse all available tools |
-| Storage | Key-value storage that persists across sessions |
-| Message Bus | Broadcast messages between tools |
-| Export | Save your workspace as HTML, JSON, or a bookmarklet |
-| Samples | Ping, echo, clock, counter, storage — starter examples to learn from |
 
 ---
 
