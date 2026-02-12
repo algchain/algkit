@@ -32,7 +32,7 @@ A private App Store for your browser. Drag and drop curated open-source tools an
 
 <h2>How It Works</h2>
 
-<table>
+<table style="border-collapse:collapse; border:none;">
   <tr>
     <td valign="top" width="50%">
       <ol>
@@ -56,7 +56,8 @@ A private App Store for your browser. Drag and drop curated open-source tools an
 ---
 <h2>Included Tools</h2>
 
-<table>
+
+<table style="border-collapse:collapse; border:none;">
   <tr>
     <td valign="top" width="55%">
       <table>
@@ -74,7 +75,7 @@ A private App Store for your browser. Drag and drop curated open-source tools an
         <tr><td><b>Samples</b></td><td>Ping, echo, clock, counter, storage — starter examples to learn from</td></tr>
       </table>
     </td>
-    <td valign="top" width="100%" align="right">
+    <td valign="top" width="38%" align="right">
       <img src="assets/media/screen%20demo%20apps%20paint.png" width="450" alt="Demo apps">
     </td>
   </tr>
