@@ -1,0 +1,296 @@
+<!--@platokit-cap
+name: index
+kind: search
+type: module
+version: 1.0.0
+author: panamantis
+description: Capability catalog - INDEX, RECIPES, BUS_TOPICS data arrays for search_main_kit.html
+
+provides:
+  - search.index
+  - search.recipes
+  - search.bus_topics
+requires: []
+-->
+<!--
+  #0v1# JC Feb 08, 2026   Extracted from search_main_kit.html for code splitting.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>searcher_index (module)</title>
+  <style>
+    :root {
+      --c-bg: #ffffff; --c-bg-alt: #f8f9fa; --c-border: #dadce0;
+      --c-text: #3c4043; --c-text-muted: #5f6368; --c-text-faint: #9aa0a6;
+      --c-accent: #1a73e8; --c-accent-light: #e8f0fe;
+      --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--c-bg-alt); color: var(--c-text); padding: 3% 5%; font-size: clamp(13px, 1.4vw, 16px); max-width: 800px; margin: 0 auto; }
+    h3 { font-size: clamp(18px, 2.2vw, 24px); margin-bottom: 4px; }
+    .sub { color: var(--c-text-faint); font-size: clamp(12px, 1.2vw, 14px); margin-bottom: 16px; }
+    .section { background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+    .section-title { font-weight: 600; font-size: clamp(13px, 1.3vw, 15px); color: var(--c-text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    table { width: 100%; border-collapse: collapse; font-size: clamp(12px, 1.2vw, 14px); }
+    th { text-align: left; color: var(--c-text-muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--c-border); }
+    td { padding: 4px 8px; border-bottom: 1px solid var(--c-bg-alt); }
+    td:first-child { font-weight: 500; color: var(--c-accent); }
+    .count { color: var(--c-text-faint); font-size: clamp(11px, 1.1vw, 13px); }
+    .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--c-accent-light); color: var(--c-accent); margin: 1px; }
+  </style>
+</head>
+<body>
+
+  <h3>searcher_index</h3>
+  <div class="sub">Data module for search_main_kit.html. Contains capability index, integration recipes, and bus wiring.</div>
+
+  <div class="section" id="sec-index">
+    <div class="section-title">Capabilities <span class="count" id="cap-count"></span></div>
+    <table id="cap-table"><thead><tr><th>Name</th><th>Category</th><th>Methods</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section" id="sec-recipes">
+    <div class="section-title">Recipes <span class="count" id="recipe-count"></span></div>
+    <table id="recipe-table"><thead><tr><th>Name</th><th>Caps</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section" id="sec-sets">
+    <div class="section-title">Load Sets <span class="count" id="set-count"></span></div>
+    <table id="set-table"><thead><tr><th>ID</th><th>Description</th><th>Caps</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="section" id="sec-bus">
+    <div class="section-title">Bus Topics <span class="count" id="bus-count"></span></div>
+    <div id="bus-out"></div>
+  </div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    var MODULE_NAME = 'searcher_index';
+
+    // ================================================================
+    // CAPABILITY INDEX
+    // Add new caps here. Searcher.html imports this automatically.
+    // ================================================================
+    var INDEX = [
+      { name: 'chats_gateway_allenai', path: 'caps/chats/chat_gateway-allenai_kit.html', desc: 'Generic LLM service endpoint via Puter.js / Allen AI. Any cap can call or bus-request.', category: 'llm',
+        methods: ['send_prompt', 'get_status', 'get_history'], tags: ['llm', 'ai', 'chat', 'gateway'],
+        requires: ['store', 'open_tab', 'bus_publish', 'bus_subscribe'],
+        publishes: ['llm_status', 'help_response'], subscribes: ['help_request'] },
+
+      { name: 'chat2_vid', path: 'caps/chat_video/chat_video_kit.html', desc: 'WebRTC P2P video chat with auto-reconnect, MQTT signaling.', category: 'communication',
+        methods: ['get_room', 'set_room', 'send_message', 'get_status', 'start_video'], tags: ['chat', 'video', 'webrtc', 'p2p'],
+        requires: ['store', 'bus_publish'],
+        publishes: ['chat_room', 'chat_status'], subscribes: [] },
+
+      { name: 'help_hotline', path: 'caps/help/help_hotline_kit.html', desc: 'Help request form with per-service routing (Ask Mesh, Ask LLM). Key-based tracking.', category: 'workflow',
+        methods: ['submit_request', 'get_requests', 'get_status'], tags: ['help', 'form', 'routing', 'support'],
+        requires: ['store', 'bus_publish', 'bus_subscribe'],
+        publishes: ['help_request'], subscribes: ['chat_status', 'chat_room', 'llm_status', 'help_response'] },
+
+      { name: 'platokit_export_ui', path: 'platokit_export_ui.html', desc: 'Workspace export - JSON, compiled HTML, embedded bookmarklet.', category: 'admin',
+        methods: ['export.json', 'export.html', 'export.bookmarklet'], tags: ['export', 'compile', 'bookmarklet'],
+        requires: ['store'], publishes: [], subscribes: [] },
+
+      { name: 'send_msg', path: 'caps/base_pages/msg_send_kit.html', desc: 'Message broadcaster. Publish to topics, broadcast to all caps, discover services.', category: 'utility',
+        methods: ['msg.send', 'msg.broadcast'], tags: ['utility', 'debug', 'messaging'],
+        requires: ['capabilities', 'event_bus'],
+        publishes: ['(topic-based)'], subscribes: ['llm_responses', '_broadcast'] },
+
+
+      { name: 'searcher', path: 'caps/base_pages/search_main_kit.html', desc: 'Capability discovery, search, integration recipes, bus graph.', category: 'base',
+        methods: ['search', 'get_index', 'get_recipes'], tags: ['search', 'discovery', 'index'],
+        requires: [], publishes: [], subscribes: [] },
+
+      { name: 'searcher_index', path: 'caps/base_pages/search_index_kit.html', desc: 'Data module for searcher. Contains INDEX, RECIPES, BUS_TOPICS. Standalone-viewable.', category: 'base',
+        methods: [], tags: ['data', 'module', 'index'],
+        requires: [], publishes: [], subscribes: [] },
+
+      { name: 'input_user_list', path: 'caps/caps_samples/input_userlist.html', desc: 'User text input with hub-stored list. Basic data entry.', category: 'input',
+        methods: ['input.text', 'list.view'], tags: ['input', 'ui', 'list'],
+        requires: ['store.append', 'store.get'], publishes: [], subscribes: [] },
+
+      { name: 'input_user_list_submit_challenge', path: 'caps/caps_samples/input_submit-challenge.html', desc: 'Input list with per-item HTTP submission to configurable endpoint.', category: 'input',
+        methods: ['input.text', 'list.view', 'submit.item', 'submit.all'], tags: ['input', 'submit', 'challenge'],
+        requires: ['store.get', 'store.set'], publishes: [], subscribes: [] },
+
+      { name: 'localstorage', path: 'caps/base_pages/store_local_kit.html', desc: 'Key-value storage using localStorage (persistent) and sessionStorage (tab-scoped).', category: 'storage',
+        methods: ['storage.get', 'storage.set', 'storage.remove', 'storage.list', 'storage.clear'], tags: ['storage', 'persistence', 'core'],
+        requires: [], publishes: [], subscribes: [] },
+
+      { name: 'ping', path: 'caps/caps_samples/sample_ping.html', desc: 'Simple ping/pong test cap.', category: 'test',
+        methods: ['ping.respond'], tags: ['test', 'basic'], requires: [], publishes: [], subscribes: [] },
+
+      { name: 'echo', path: 'caps/caps_samples/sample_echo.html', desc: 'Echoes back any message sent.', category: 'test',
+        methods: ['echo.send'], tags: ['test', 'debug'], requires: [], publishes: [], subscribes: [] },
+
+      { name: 'clock', path: 'caps/caps_samples/sample_clock.html', desc: 'Real-time clock display.', category: 'test',
+        methods: ['clock.time', 'clock.date'], tags: ['display', 'time'], requires: [], publishes: [], subscribes: [] },
+
+      { name: 'counter', path: 'caps/caps_samples/sample_counter.html', desc: 'Simple counter with increment/decrement.', category: 'test',
+        methods: ['counter.get', 'counter.increment', 'counter.decrement', 'counter.reset'], tags: ['state', 'basic'], requires: [], publishes: [], subscribes: [] },
+
+      { name: 'storage_sample', path: 'caps/caps_samples/sample_storage.html', desc: 'LocalStorage key-value test cap.', category: 'test',
+        methods: ['storage.get', 'storage.set', 'storage.delete', 'storage.keys'], tags: ['storage', 'test'], requires: [], publishes: [], subscribes: [] },
+
+      { name: 'test_runner', path: 'caps/caps_samples/test_runner.html', desc: 'Built-in test runner for hub validation.', category: 'test',
+        methods: ['test.run', 'test.status'], tags: ['test', 'internal'], requires: [], publishes: [], subscribes: [] }
+    ];
+
+    // ================================================================
+    // RECIPES (curated cap combos)
+    // ================================================================
+    var RECIPES = [
+      { name: 'Full Help Desk', desc: 'Submit help requests, route to LLM for auto-response AND mesh chat for human help. Full bus wiring.', load_set: 'help_full',
+        caps: ['help_hotline', 'chats_gateway_allenai', 'chat2_vid'],
+        enables: 'Ask LLM button + Ask Mesh button both active. LLM auto-responds. Mesh peer sees request in chat.' },
+
+      { name: 'Help + LLM', desc: 'Help form with LLM auto-response. No mesh chat needed.', load_set: null,
+        caps: ['help_hotline', 'chats_gateway_allenai'],
+        tiles: 'caps/help/help_hotline_kit.html,caps/chats/chat_gateway-allenai_kit.html',
+        enables: 'Ask LLM button active. LLM auto-processes and responds via bus.' },
+
+      { name: 'Help + Mesh', desc: 'Help form with mesh chat routing. Human help from P2P peer.', load_set: 'help_chat',
+        caps: ['help_hotline', 'chat2_vid'],
+        enables: 'Ask Mesh button active. Help request appears in chat for peer to answer.' },
+
+      { name: 'LLM Chat', desc: 'Direct LLM conversation. Allen AI models via Puter.js.', load_set: 'llm_gateway',
+        caps: ['chats_gateway_allenai'],
+        enables: 'Standalone LLM chat with streaming, model selection, auth flow.' },
+
+      { name: 'Video Chat', desc: 'P2P video chat with text messaging. MQTT signaling, WebRTC.', load_set: 'video_chat',
+        caps: ['chat2_vid'],
+        enables: 'Room creation, join by ID, video broadcast, text chat over DataChannel.' },
+
+      { name: 'Video + LLM', desc: 'Video chat with LLM integration. LLM can power text responses (bus-wired).', load_set: 'video_llm',
+        caps: ['chat2_vid', 'chats_gateway_allenai'],
+        enables: 'Chat + LLM on same bus. Future: LLM auto-responds to chat messages.' },
+
+      { name: 'Export Workspace', desc: 'Compile current workspace to portable HTML or bookmarklet.', load_set: 'export',
+        caps: ['platokit_export_ui'],
+        enables: 'JSON export, HTML compile, embedded bookmarklet generation.' },
+
+      { name: 'Full Chats Kit', desc: 'LLM gateway + workspace export. Chat and save.', load_set: 'chatskit',
+        caps: ['chats_gateway_allenai', 'platokit_export_ui'],
+        enables: 'LLM chat with export capability. Save conversations as portable HTML.' }
+    ];
+
+    // ================================================================
+    // LOAD SETS (all registered cap collections - mirrors dev_sets.json)
+    // These are the full catalog. RECIPES above are curated highlights.
+    // ================================================================
+    var LOAD_SETS = [
+      { id: 'search', desc: 'Capability search and discovery', tiles: ['caps/base_pages/search_main_kit.html'] },
+      { id: 'samples_basic', desc: 'Basic ping/echo test', tiles: ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html'] },
+      { id: 'samples_all', desc: 'All sample caps', tiles: ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html', 'caps/caps_samples/sample_storage.html', 'caps/caps_samples/sample_clock.html', 'caps/caps_samples/sample_counter.html'] },
+      { id: 'test_runner', desc: 'Test runner only', tiles: ['caps/caps_samples/test_runner.html'] },
+      { id: 'storage_test', desc: 'Storage capability test', tiles: ['caps/base_pages/store_local_kit.html', 'caps/caps_samples/sample_ping.html'] },
+      { id: 'input_list', desc: 'Basic input/list via hub store', tiles: ['caps/caps_samples/input_userlist.html'] },
+      { id: 'submit_challenge', desc: 'Input/list with HTTP submit', tiles: ['caps/caps_samples/input_submit-challenge.html'] },
+      { id: 'llm_chat', desc: 'Allen AI LLM chat only', tiles: ['caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'llm_demo', desc: 'LLM + message sender (full demo)', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'] },
+      { id: 'messaging', desc: 'Message broadcaster test', tiles: ['caps/base_pages/msg_send_kit.html', 'caps/caps_samples/sample_ping.html'] },
+      { id: 'llm_gateway', desc: 'Tab relay auth demo', tiles: ['caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'export', desc: 'Workspace export UI', tiles: ['platokit_export_ui.html'] },
+      { id: 'chatskit', desc: 'Full chats kit with export', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'platokit_export_ui.html'] },
+      { id: 'video_chat', desc: 'WebRTC video chat', tiles: ['caps/chat_video/chat_video_kit.html'] },
+      { id: 'video_llm', desc: 'Video chat + LLM (bus integration)', tiles: ['caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'help', desc: 'Help hotline only', tiles: ['caps/help/help_hotline_kit.html'] },
+      { id: 'help_chat', desc: 'Help + mesh chat (bus routing)', tiles: ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html'] },
+      { id: 'help_full', desc: 'Help + chat + LLM (full integration)', tiles: ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'skin_demo', desc: 'Demo caps for skin mode', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'] }
+    ];
+
+    // ================================================================
+    // BUS TOPICS (auto-derived from INDEX)
+    // ================================================================
+    var BUS_TOPICS = {};
+    INDEX.forEach(function(c) {
+      (c.publishes || []).forEach(function(t) {
+        if (t === '(topic-based)') return;
+        if (!BUS_TOPICS[t]) BUS_TOPICS[t] = { publishers: [], subscribers: [] };
+        BUS_TOPICS[t].publishers.push(c.name);
+      });
+      (c.subscribes || []).forEach(function(t) {
+        if (t === '_broadcast') return;
+        if (!BUS_TOPICS[t]) BUS_TOPICS[t] = { publishers: [], subscribers: [] };
+        BUS_TOPICS[t].subscribers.push(c.name);
+      });
+    });
+
+    // ================================================================
+    // MODULE EXPORT PROTOCOL
+    // If loaded in an iframe, post data to parent.
+    // If standalone, render preview below.
+    // ================================================================
+    var isImported = (window.parent !== window);
+
+    if (isImported) {
+      window.parent.postMessage({
+        kind: 'html_module',
+        module: MODULE_NAME,
+        data: { INDEX: INDEX, RECIPES: RECIPES, LOAD_SETS: LOAD_SETS, BUS_TOPICS: BUS_TOPICS }
+      }, '*');
+    }
+
+    // ================================================================
+    // STANDALONE PREVIEW (always rendered)
+    // ================================================================
+    var capCount = document.getElementById('cap-count');
+    var recipeCount = document.getElementById('recipe-count');
+    var busCount = document.getElementById('bus-count');
+    if (capCount) capCount.textContent = '(' + INDEX.length + ')';
+    if (recipeCount) recipeCount.textContent = '(' + RECIPES.length + ')';
+
+    var tbody = document.querySelector('#cap-table tbody');
+    if (tbody) {
+      INDEX.forEach(function(c) {
+        var tr = document.createElement('tr');
+        var methods = c.methods.map(function(m) { return '<span class="tag">' + m + '</span>'; }).join(' ');
+        tr.innerHTML = '<td>' + c.name + '</td><td>' + c.category + '</td><td>' + methods + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    var rtbody = document.querySelector('#recipe-table tbody');
+    if (rtbody) {
+      RECIPES.forEach(function(r) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + r.name + '</td><td>' + r.caps.join(', ') + '</td>';
+        rtbody.appendChild(tr);
+      });
+    }
+
+    var stbody = document.querySelector('#set-table tbody');
+    var setCount = document.getElementById('set-count');
+    if (setCount) setCount.textContent = '(' + LOAD_SETS.length + ')';
+    if (stbody) {
+      LOAD_SETS.forEach(function(s) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + s.id + '</td><td>' + s.desc + '</td><td>' + s.tiles.length + '</td>';
+        stbody.appendChild(tr);
+      });
+    }
+
+    var busOut = document.getElementById('bus-out');
+    var topics = Object.keys(BUS_TOPICS).sort();
+    if (busCount) busCount.textContent = '(' + topics.length + ')';
+    if (busOut) {
+      busOut.innerHTML = topics.map(function(t) {
+        var b = BUS_TOPICS[t];
+        return '<div style="margin:4px 0;font-size:13px">' +
+          '<b style="color:var(--c-accent)">' + b.publishers.join(', ') + '</b>' +
+          ' &rarr; <code>' + t + '</code> &rarr; ' +
+          '<b style="color:#1e8e3e">' + (b.subscribers.length ? b.subscribers.join(', ') : '?') + '</b></div>';
+      }).join('');
+    }
+
+  })();
+  </script>
+</body>
+</html>

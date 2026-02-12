@@ -1,0 +1,142 @@
+{
+  "generated_by": "release/steps/build_release.py",
+  "file_count": 27,
+  "total_bytes": 5294751,
+  "files": [
+    {
+      "path": "assets/media/logo1_small_2cm.png",
+      "size": 23175,
+      "sha256": "c56732974d4861091e011b79b9b418b4ebdb1acdec96fc2c4ba3b0b8ab50e226"
+    },
+    {
+      "path": "assets/media/logo1_small_5cm.png",
+      "size": 46913,
+      "sha256": "5979181c86546aa8e4eacda081d15190e9cf61a0b3e32133b667515251584d71"
+    },
+    {
+      "path": "assets/media/logo1_tiny_32px.png",
+      "size": 18279,
+      "sha256": "deb88eee4c081ac9eaaa9b43ad5866c642af6fce792fc6ef93392024066ff180"
+    },
+    {
+      "path": "assets/media/paint tiles drag box.png",
+      "size": 546231,
+      "sha256": "2a52b4f8404d971e94598589d6323c56c7d9d6d2694d27c1f9685b5e1aeed617"
+    },
+    {
+      "path": "assets/media/screen demo apps paint.png",
+      "size": 2919219,
+      "sha256": "61642bc9eb00c85fcb1cd48d13587048be559030b2781efe2e9800be4835c0e9"
+    },
+    {
+      "path": "assets/media/screen demo normal medium.png",
+      "size": 100266,
+      "sha256": "12461606702aa78f727f1d33f22f37f1046a1ed53c24e0bdf137453a7d4b7022"
+    },
+    {
+      "path": "assets/media/swipe 1mb webp.webp",
+      "size": 1157960,
+      "sha256": "063c6a274253a2f159250a3c64e69d8edac0e100a729ed2fb2083001aa52f8bf"
+    },
+    {
+      "path": "caps/base_pages/msg_send_kit.html",
+      "size": 11975,
+      "sha256": "f05bbd72d59bc653b4d4700e9a46adf508d202db6188eb47f3c164cb806f8d1c"
+    },
+    {
+      "path": "caps/base_pages/search_index_kit.html",
+      "size": 18248,
+      "sha256": "f30f93c0c2a5353e3d757e1d642930f5d3a70de7202252d705b49a66af146b42"
+    },
+    {
+      "path": "caps/base_pages/search_main_kit.html",
+      "size": 28384,
+      "sha256": "59d3f0980a6a9e8dec557ddff9ec00bff89cd6ed4f5751a358fe0cb3dd724830"
+    },
+    {
+      "path": "caps/base_pages/store_local_kit.html",
+      "size": 11993,
+      "sha256": "1c704ba935cfd1fa01ccff378a97124858fc002fbdb2df933d8dfef818e873aa"
+    },
+    {
+      "path": "caps/caps_samples/sample_echo.html",
+      "size": 2352,
+      "sha256": "273161f5cad8ad70544ff433eacf22cfc647453d18c76f79f0add81a5b1229db"
+    },
+    {
+      "path": "caps/caps_samples/sample_ping.html",
+      "size": 1819,
+      "sha256": "e4aa87f87406dafcf1aa8eb7909887a340784121c5efd133c2752432767c29d8"
+    },
+    {
+      "path": "caps/chat_video/chat_video_kit.html",
+      "size": 30135,
+      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
+    },
+    {
+      "path": "caps/chats/auth_puter_kit.html",
+      "size": 7356,
+      "sha256": "a83d6b95fe2b1e851e4e70cc4862d797cd36dba9b60329cedf32c78097952fa6"
+    },
+    {
+      "path": "caps/chats/chat_gateway-allenai_kit.html",
+      "size": 26485,
+      "sha256": "ca132ef233dc9ca748fb6979c79acf1b0eac50ff13b3663ccd5ea09da9c31569"
+    },
+    {
+      "path": "caps/help/help_hotline_kit.html",
+      "size": 23551,
+      "sha256": "00277e4d0aeb5c0807fccae43ac755e94fa2c3f07010f174d04b7fbaf1794446"
+    },
+    {
+      "path": "caps/readme.md",
+      "size": 4502,
+      "sha256": "cf3190f9b31039cb62c177fc89318bb41b772e6bec3e23731ebf556275fd888d"
+    },
+    {
+      "path": "dev_sets.json",
+      "size": 4325,
+      "sha256": "55753147ab19d989086825a40545d2c3569186edb748ed6d502a9606a3a5de32"
+    },
+    {
+      "path": "hubskins/skin_hub.html",
+      "size": 49613,
+      "sha256": "2f971a284abbd2035f9336d07f947ccc29e107617cd3a55381e59fb7548a27fc"
+    },
+    {
+      "path": "js/platokit_debug.js",
+      "size": 19745,
+      "sha256": "417db5c6676d1be50c6944c8f87255db43155531d6699865bf07ece3b9484f8d"
+    },
+    {
+      "path": "js/skin_manager.js",
+      "size": 29137,
+      "sha256": "e78e7caac41df909684e81304fa148e09b155e8bafeb2be4f5b7c74b56777ae9"
+    },
+    {
+      "path": "platokit.html",
+      "size": 131669,
+      "sha256": "8d4a9e8e73ff34721b8b43fb9678d5e7f47f865ebf5ec5318e3d9d256aa354ee"
+    },
+    {
+      "path": "platokit_compiler.js",
+      "size": 13946,
+      "sha256": "c07c8497d6f50a8ec350de1d089689371a6759533c88a9b98ed5ee4b1abb49f7"
+    },
+    {
+      "path": "platokit_export_ui.html",
+      "size": 32591,
+      "sha256": "e96894c939a0b0eb9643de281a688f9c4084ff259a555b7d1a623bc4711552b2"
+    },
+    {
+      "path": "README.md",
+      "size": 4747,
+      "sha256": "d7c4199c74608004f1284504f784a3422c30436329c767482114a83f81319f1e"
+    },
+    {
+      "path": "SAMPLE-CHAT_VIDEO_KIT.html",
+      "size": 30135,
+      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
+    }
+  ]
+}

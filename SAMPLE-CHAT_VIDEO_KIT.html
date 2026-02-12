@@ -1,0 +1,641 @@
+<!--@platokit-cap
+video
+kind: chat
+version: 2.1.0
+provides:
+  - chat2_vid.get_room
+  - chat2_vid.set_room
+  - chat2_vid.send_message
+  - chat2_vid.get_status
+  - chat2_vid.start_video
+requires:
+  - store (hub)
+  - bus_publish (hub)
+author: JC
+description: WebRTC P2P video chat with auto-reconnect, MQTT signaling
+tags:
+  - chat
+  - video
+  - webrtc
+-->
+<!--
+  #0v4# JC Feb 07, 2026   Skin-matched UI, responsive clamp() sizing, video button, join section UX.
+  #0v3# JC Feb 07, 2026   Hub integration (register/call protocol), expose methods, UI cleanup.
+  #0v2# JC Jan 29, 2026   Add filename-embedded room ID and Save feature.
+  #0v1# JC Jan 28, 2026   Create v2 based on old mini reconnect and add video.
+
+  ARCHITECTURE:
+  - WebRTC P2P with MQTT signaling (broker.emqx.io)
+  - Video activation via button (requests browser permission on demand)
+  - Both peers can stream video (master and user2)
+  - Hub-integrated: registers as cap, exposes methods via call protocol
+  - See chat_video.md for design spec and tradeoffs
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Network Chat</title>
+    <style>
+        :root {
+            --c-bg: #ffffff;
+            --c-bg-alt: #f8f9fa;
+            --c-border: #dadce0;
+            --c-border-focus: #1a73e8;
+            --c-text: #3c4043;
+            --c-text-muted: #5f6368;
+            --c-text-faint: #9aa0a6;
+            --c-accent: #1a73e8;
+            --c-accent-light: #e8f0fe;
+            --c-success: #1e8e3e;
+            --c-success-light: #e6f4ea;
+            --c-warn: #f9ab00;
+            --c-error: #d93025;
+            --shadow-card: 0 1px 3px 0 rgba(60,64,67,0.3);
+            --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font); background: var(--c-bg); color: var(--c-text); padding: 3% 5%; font-size: clamp(14px, 1.6vw, 18px); max-width: 800px; margin: 0 auto; }
+
+        /* Title */
+        .cap-title { font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; margin-bottom: clamp(12px, 2vw, 20px); display: flex; align-items: center; gap: 10px; }
+        .cap-title .role-badge { font-size: clamp(11px, 1.2vw, 14px); font-weight: 500; padding: 3px 10px; border-radius: 10px; background: var(--c-accent-light); color: var(--c-accent); }
+
+        /* Sections */
+        .section { background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; padding: clamp(12px, 2vw, 18px); margin-bottom: clamp(10px, 1.5vw, 16px); }
+        .section-label { font-size: clamp(11px, 1.1vw, 13px); font-weight: 600; text-transform: uppercase; color: var(--c-text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
+        .section-hint { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-faint); margin-bottom: 8px; }
+
+        /* Room ID display */
+        .room-display { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .room-id-box { font-family: 'Roboto Mono', monospace; font-size: clamp(20px, 2.8vw, 32px); font-weight: 600; color: var(--c-accent); background: var(--c-accent-light); padding: 8px 18px; border-radius: 6px; cursor: pointer; user-select: all; letter-spacing: 2px; transition: background 0.15s; }
+        .room-id-box:hover { background: #d2e3fc; }
+        .room-hint { font-size: clamp(11px, 1.1vw, 13px); color: var(--c-text-faint); }
+
+        /* Join section */
+        .join-row { display: flex; gap: 8px; align-items: center; }
+        .join-input { flex: 1; max-width: 240px; padding: 8px 12px; border: 1px solid var(--c-border); border-radius: 6px; font-size: clamp(14px, 1.4vw, 16px); font-family: 'Roboto Mono', monospace; color: var(--c-text); outline: none; }
+        .join-input:focus { border-color: var(--c-border-focus); box-shadow: 0 0 0 2px var(--c-accent-light); }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-bg); color: var(--c-text); font-size: clamp(13px, 1.3vw, 15px); font-family: var(--font); cursor: pointer; transition: background 0.15s, border-color 0.15s; white-space: nowrap; }
+        .btn:hover { background: var(--c-bg-alt); border-color: var(--c-text-faint); }
+        .btn-primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+        .btn-primary:hover { background: #1967d2; }
+        .btn:disabled { opacity: 0.4; cursor: default; }
+        .btn-link { background: none; border: none; color: var(--c-text-faint); font-size: clamp(11px, 1.1vw, 13px); cursor: pointer; padding: 2px 4px; text-decoration: underline; }
+        .btn-link:hover { color: var(--c-text-muted); }
+
+        /* Status indicators */
+        .status-row { display: flex; gap: clamp(12px, 2vw, 20px); align-items: center; flex-wrap: wrap; }
+        .status-item { display: flex; align-items: center; gap: 6px; font-size: clamp(13px, 1.3vw, 15px); color: var(--c-text-muted); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .dot-on { background: var(--c-success); }
+        .dot-off { background: var(--c-border); }
+        .dot-warn { background: var(--c-warn); }
+        .dot-err { background: var(--c-error); }
+
+        /* Video */
+        #videoContainer { position: relative; width: 100%; max-width: 720px; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: clamp(10px, 1.5vw, 16px); display: none; }
+        #videoContainer::before { content: ''; display: block; padding-bottom: 56.25%; }
+        #remoteVideo { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        #localVideo { position: absolute; bottom: 10px; right: 10px; width: 150px; height: 112px; border: 2px solid #fff; border-radius: 6px; object-fit: cover; background: #000; }
+        #playOverlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); color: #fff; padding: 14px 28px; border-radius: 8px; cursor: pointer; font-size: 16px; display: none; z-index: 10; }
+        #playOverlay:hover { background: rgba(0,0,0,0.8); }
+
+        /* Messages */
+        #messages { border: 1px solid var(--c-border); border-radius: 8px; height: clamp(160px, 25vw, 280px); overflow-y: auto; padding: 10px 12px; margin-bottom: 10px; background: var(--c-bg-alt); font-size: clamp(13px, 1.3vw, 15px); line-height: 1.6; }
+        #messages .msg-sys { color: var(--c-text-faint); font-style: italic; }
+        #messages .msg-you { color: var(--c-accent); }
+        #messages .msg-peer { color: var(--c-text); }
+        #messages .msg-hub { color: var(--c-success); }
+        .chat-row { display: flex; gap: 8px; }
+        #message { flex: 1; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 6px; font-size: clamp(14px, 1.4vw, 16px); font-family: var(--font); color: var(--c-text); outline: none; }
+        #message:focus { border-color: var(--c-border-focus); box-shadow: 0 0 0 2px var(--c-accent-light); }
+
+        /* Drop overlay */
+        #dropOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26,115,232,0.1); display: none; justify-content: center; align-items: center; font-size: 18px; color: var(--c-accent); border: 3px dashed var(--c-accent); z-index: 20; pointer-events: none; }
+
+        /* Toast */
+        .copied-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--c-text); color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity 0.2s; z-index: 100; pointer-events: none; }
+        .copied-toast.show { opacity: 1; }
+    </style>
+    <script src="https://unpkg.com/mqtt@5.0.1/dist/mqtt.min.js"></script>
+</head>
+<body>
+    <div id="dropOverlay">Drop file or link to join</div>
+    <div class="copied-toast" id="toast"></div>
+
+    <!-- TITLE -->
+    <div class="cap-title">
+        Mesh Network Chat
+        <span class="role-badge" id="roleBadge"></span>
+    </div>
+
+    <!-- ROOM ID (Peer A: shows generated ID / Peer B: shows joined ID) -->
+    <div class="section" id="roomSection">
+        <div class="section-label">Room ID</div>
+        <div class="room-display">
+            <span class="room-id-box" id="roomIdBox" title="Click to copy" onclick="copyRoom()">---</span>
+            <span class="room-hint" id="roomHint">click to copy for sharing</span>
+        </div>
+        <div style="margin-top:6px;">
+            <button class="btn-link" id="saveBtn" onclick="saveJoinableFile()" style="display:none;">Save join request to file</button>
+            <button class="btn-link" id="debugShareBtn" onclick="debugShareFile()" style="display:none;">debug_share_file</button>
+        </div>
+    </div>
+
+    <!-- JOIN -->
+    <div class="section" id="joinSection">
+        <div class="section-label">Join a Room</div>
+        <div class="section-hint" id="joinHint">To join someone else's room, enter their Room ID below. Otherwise, share your Room ID above.</div>
+        <div class="join-row">
+            <input type="text" class="join-input" id="manualRoom" placeholder="e.g. a1b2c3d4">
+            <button class="btn btn-primary" onclick="manualJoin()">Join</button>
+        </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="section">
+        <div class="section-label">Status</div>
+        <div class="status-row">
+            <span class="status-item"><span class="dot dot-off" id="dotInternet"></span> Internet</span>
+            <span class="status-item"><span class="dot dot-off" id="dotConnected"></span> Connected</span>
+            <span class="status-item"><span class="dot dot-off" id="dotVideo"></span> Video</span>
+            <button class="btn" id="videoBtn" onclick="startVideo()">Broadcast Video</button>
+        </div>
+    </div>
+
+    <!-- VIDEO -->
+    <div id="videoContainer">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div id="playOverlay" onclick="playRemoteVideo()">Click to view video</div>
+    </div>
+
+    <!-- MESSAGES -->
+    <div id="messages"></div>
+    <div class="chat-row">
+        <input id="message" type="text" placeholder="Waiting for connection..." disabled onkeypress="event.key==='Enter'&&sendMessage()">
+        <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ========================================
+        // HUB INTEGRATION
+        // ========================================
+        const CAP_NAME = 'chat2_vid';
+        const CAP_VERSION = '2.1.0';
+        const CAP_METHODS = ['get_room', 'set_room', 'send_message', 'get_status', 'start_video'];
+        let isHubbed = false;
+
+        try {
+            if (window.parent && window.parent !== window) {
+                parent.postMessage({
+                    kind: 'register', v: 1,
+                    payload: { name: CAP_NAME, version: CAP_VERSION, methods: CAP_METHODS }
+                }, '*');
+                isHubbed = true;
+            }
+        } catch (_) { /* standalone mode */ }
+
+        // ========================================
+        // STATE
+        // ========================================
+        const urlParams = new URLSearchParams(window.location.search);
+        let room = urlParams.get('room');
+
+        if (!room) {
+            const match = window.location.pathname.match(/_([a-zA-Z0-9]{8})\.html$/);
+            if (match) room = match[1];
+        }
+
+        let isPeerA = !room;
+        let pc, channel, localStream;
+        let iceQueue = [];
+        let isMqttInit = false;
+        let peerConnected = false;
+        let mqttConnected = false;
+
+        // DOM refs
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('message');
+        const sendBtn = document.getElementById('sendBtn');
+        const videoContainer = document.getElementById('videoContainer');
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        // Status dots
+        const dotInternet = document.getElementById('dotInternet');
+        const dotConnected = document.getElementById('dotConnected');
+        const dotVideo = document.getElementById('dotVideo');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            messagesDiv.innerHTML = '';
+            videoContainer.style.display = 'none';
+        });
+
+        // ========================================
+        // MESSAGE HANDLER (hub + standalone)
+        // ========================================
+        window.onmessage = function(e) {
+            const d = e.data;
+            if (!d || !d.kind) return;
+
+            switch (d.kind) {
+                case 'registered':
+                    console.log('[chat2_vid] Registered with hub');
+                    break;
+                case 'ping':
+                    parent.postMessage({ kind: 'pong', v: 1 }, '*');
+                    break;
+                case 'call':
+                    handleCall(d.payload, d.id);
+                    break;
+                case 'bus_event':
+                    handleBusEvent(d.payload);
+                    break;
+                case 'unload':
+                    if (localStream) localStream.getTracks().forEach(t => t.stop());
+                    if (pc) pc.close();
+                    parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+                    break;
+            }
+        };
+
+        function handleCall(payload, id) {
+            let result = null;
+            const method = payload ? payload.method : null;
+
+            switch (method) {
+                case 'get_room':
+                    result = { room: room, is_peer_a: isPeerA };
+                    break;
+                case 'set_room':
+                    if (payload.args && payload.args.room) {
+                        room = payload.args.room;
+                        isPeerA = false;
+                        window.location.search = '?room=' + room;
+                        result = { ok: true, room: room };
+                    } else {
+                        result = { ok: false, error: 'missing args.room' };
+                    }
+                    break;
+                case 'send_message':
+                    if (payload.args && payload.args.text && channel && channel.readyState === 'open') {
+                        channel.send(payload.args.text);
+                        appendMessage('Hub', payload.args.text);
+                        result = { ok: true };
+                    } else {
+                        result = { ok: false, error: channel ? 'channel not open' : 'no channel' };
+                    }
+                    break;
+                case 'get_status':
+                    result = {
+                        room: room, is_peer_a: isPeerA, peer_connected: peerConnected,
+                        video_active: !!localStream,
+                        channel_state: channel ? channel.readyState : 'none',
+                        ice_state: pc ? pc.iceConnectionState : 'none'
+                    };
+                    break;
+                case 'start_video':
+                    startVideo();
+                    result = { ok: true, note: 'async - check get_status' };
+                    break;
+                default:
+                    result = { error: 'unknown method: ' + method };
+            }
+
+            if (isHubbed && id) {
+                parent.postMessage({ kind: 'response', v: 1, payload: { id: id, result: result } }, '*');
+            }
+        }
+
+        function handleBusEvent(payload) {
+            if (!payload) return;
+            // Future: LLM text integration
+            // if (payload.topic === 'llm_response' && payload.data && payload.data.text) {
+            //     if (channel && channel.readyState === 'open') {
+            //         channel.send('[LLM] ' + payload.data.text);
+            //         appendMessage('LLM', payload.data.text);
+            //     }
+            // }
+        }
+
+        // ========================================
+        // UI UPDATES
+        // ========================================
+        function updateStatusDots() {
+            dotInternet.className = 'dot ' + (mqttConnected ? 'dot-on' : 'dot-off');
+            dotConnected.className = 'dot ' + (peerConnected ? 'dot-on' : 'dot-off');
+            dotVideo.className = 'dot ' + (localStream ? 'dot-on' : 'dot-off');
+        }
+
+        function updateRoomUI() {
+            var box = document.getElementById('roomIdBox');
+            var hint = document.getElementById('roomHint');
+            var badge = document.getElementById('roleBadge');
+            var saveB = document.getElementById('saveBtn');
+            var debugB = document.getElementById('debugShareBtn');
+            var joinSec = document.getElementById('joinSection');
+
+            box.textContent = room || '---';
+
+            if (isPeerA) {
+                badge.textContent = 'Peer A';
+                hint.textContent = 'click to copy for sharing';
+                saveB.style.display = 'inline';
+                debugB.style.display = 'inline';
+                joinSec.style.display = 'block';
+            } else {
+                badge.textContent = 'Peer B';
+                hint.textContent = 'joined room';
+                saveB.style.display = 'none';
+                debugB.style.display = 'none';
+                joinSec.style.display = 'none';
+            }
+        }
+
+        function showToast(msg) {
+            var t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(function() { t.classList.remove('show'); }, 2000);
+        }
+
+        // ========================================
+        // DRAG & DROP
+        // ========================================
+        let isInternalDrag = false;
+        document.addEventListener('dragstart', () => isInternalDrag = true);
+        document.addEventListener('dragend', () => { isInternalDrag = false; document.getElementById('dropOverlay').style.display = 'none'; });
+        document.body.addEventListener('dragover', e => { e.preventDefault(); if (!isInternalDrag) document.getElementById('dropOverlay').style.display = 'flex'; });
+        document.body.addEventListener('dragleave', e => { e.preventDefault(); if (e.relatedTarget === null) document.getElementById('dropOverlay').style.display = 'none'; });
+        document.body.addEventListener('drop', e => {
+            e.preventDefault();
+            document.getElementById('dropOverlay').style.display = 'none';
+            if (e.dataTransfer.files.length > 0) {
+                const name = e.dataTransfer.files[0].name;
+                const match = name.match(/_([a-zA-Z0-9]{8})\.html$/);
+                if (match) window.location.href = '?room=' + match[1];
+            } else {
+                const data = e.dataTransfer.getData('text');
+                const match = data.match(/room=([a-zA-Z0-9]{8})/);
+                if (match) window.location.href = '?room=' + match[1];
+            }
+        });
+
+        // ========================================
+        // MQTT + WEBRTC
+        // ========================================
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        client.on('connect', () => {
+            console.log('MQTT Connected');
+            mqttConnected = true;
+            updateStatusDots();
+            if (!isMqttInit) { init(); isMqttInit = true; }
+            else if (!isPeerA) client.publish(room + '/join', '1');
+        });
+
+        client.on('offline', () => { mqttConnected = false; updateStatusDots(); });
+        client.on('error', () => { mqttConnected = false; updateStatusDots(); });
+
+        client.on('message', (topic, message) => {
+            const data = JSON.parse(message.toString());
+
+            if (topic === room + '/join' && isPeerA) {
+                createOffer(false);
+            }
+            else if (topic === room + '/offer') {
+                if (pc.signalingState === 'stable') {
+                    pc.setRemoteDescription(data).then(() => {
+                        processIceQueue();
+                        return pc.createAnswer();
+                    }).then(answer => {
+                        pc.setLocalDescription(answer);
+                        client.publish(room + '/answer', JSON.stringify(answer));
+                    }).catch(console.error);
+                }
+            }
+            else if (topic === room + '/answer') {
+                if (pc.signalingState === 'have-local-offer') {
+                    pc.setRemoteDescription(data).then(() => processIceQueue()).catch(console.error);
+                }
+            }
+            else if (topic.indexOf('/ice-') !== -1) {
+                const isFromOther = (isPeerA && topic.endsWith('/ice-b')) || (!isPeerA && topic.endsWith('/ice-a'));
+                if (isFromOther) {
+                    if (pc.remoteDescription) pc.addIceCandidate(data).catch(console.error);
+                    else iceQueue.push(data);
+                }
+            }
+        });
+
+        function processIceQueue() {
+            while (iceQueue.length) pc.addIceCandidate(iceQueue.shift()).catch(console.error);
+        }
+
+        function init() {
+            if (isPeerA) {
+                room = crypto.randomUUID().slice(0, 8);
+            }
+
+            updateRoomUI();
+
+            client.subscribe(room + '/offer');
+            client.subscribe(room + '/answer');
+            client.subscribe(room + '/ice-a');
+            client.subscribe(room + '/ice-b');
+            client.subscribe(room + '/join');
+
+            setupPeerConnection();
+
+            if (!isPeerA) setTimeout(() => client.publish(room + '/join', '1'), 500);
+
+            if (isHubbed) {
+                parent.postMessage({
+                    kind: 'bus_publish', v: 1,
+                    payload: { topic: 'chat_room', data: { room: room, peer: isPeerA ? 'A' : 'B' } }
+                }, '*');
+            }
+
+            appendMessage('System', isPeerA ? 'Room created. Share the Room ID for someone to join.' : 'Joined room. Waiting for connection...');
+        }
+
+        function setupPeerConnection() {
+            pc = new RTCPeerConnection(config);
+
+            pc.onicecandidate = e => {
+                if (e.candidate) client.publish(room + '/ice-' + (isPeerA ? 'a' : 'b'), JSON.stringify(e.candidate));
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                const state = pc.iceConnectionState;
+                if (state === 'disconnected' || state === 'failed') {
+                    peerConnected = false;
+                    updateStatusDots();
+                    disableChat();
+                    appendMessage('System', 'Connection lost. Reconnecting...');
+                    if (isPeerA) createOffer(true);
+                } else if (state === 'connected') {
+                    peerConnected = true;
+                    updateStatusDots();
+                    if (isHubbed) {
+                        parent.postMessage({
+                            kind: 'bus_publish', v: 1,
+                            payload: { topic: 'chat_status', data: { room: room, connected: true } }
+                        }, '*');
+                    }
+                }
+            };
+
+            pc.ontrack = e => {
+                if (e.streams && e.streams[0]) {
+                    remoteVideo.srcObject = e.streams[0];
+                    videoContainer.style.display = 'block';
+                    remoteVideo.play().then(() => {
+                        document.getElementById('playOverlay').style.display = 'none';
+                    }).catch(() => {
+                        document.getElementById('playOverlay').style.display = 'block';
+                    });
+                }
+            };
+
+            if (isPeerA) {
+                channel = pc.createDataChannel('chat');
+                setupChannel(channel);
+            } else {
+                pc.ondatachannel = e => { channel = e.channel; setupChannel(channel); };
+            }
+        }
+
+        function createOffer(isRestart) {
+            pc.createOffer({ iceRestart: isRestart }).then(offer => {
+                pc.setLocalDescription(offer);
+                client.publish(room + '/offer', JSON.stringify(offer));
+            }).catch(console.error);
+        }
+
+        function setupChannel(ch) {
+            ch.onopen = () => { enableChat(); appendMessage('System', 'Peer connected!'); };
+            ch.onclose = () => { disableChat(); appendMessage('System', 'Peer disconnected.'); };
+            ch.onmessage = e => appendMessage('Peer', e.data);
+        }
+
+        function enableChat() {
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+            messageInput.placeholder = 'Type a message...';
+            messageInput.focus();
+            peerConnected = true;
+            updateStatusDots();
+        }
+
+        function disableChat() {
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            messageInput.placeholder = 'Waiting for connection...';
+            peerConnected = false;
+            updateStatusDots();
+        }
+
+        function appendMessage(who, text) {
+            const div = document.createElement('div');
+            const cls = who === 'System' ? 'msg-sys' : who === 'You' ? 'msg-you' : who === 'Hub' ? 'msg-hub' : 'msg-peer';
+            div.className = cls;
+            div.textContent = (who === 'System' ? '' : who + ': ') + text;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // ========================================
+        // EXPOSED ACTIONS (window scope for onclick)
+        // ========================================
+        window.copyRoom = function() {
+            if (!room) return;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(room).then(() => showToast('Room ID copied!')).catch(() => fallbackCopy());
+            } else fallbackCopy();
+        };
+
+        function fallbackCopy() {
+            const ta = document.createElement('textarea');
+            ta.value = room;
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            showToast('Room ID copied!');
+        }
+
+        window.sendMessage = function() {
+            const msg = messageInput.value;
+            if (msg && channel && channel.readyState === 'open') {
+                channel.send(msg);
+                appendMessage('You', msg);
+                messageInput.value = '';
+            }
+        };
+
+        window.startVideo = async function() {
+            if (localStream) return;
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+                videoContainer.style.display = 'block';
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                createOffer(false);
+                updateStatusDots();
+                var vb = document.getElementById('videoBtn');
+                vb.textContent = 'Video Active';
+                vb.disabled = true;
+                appendMessage('System', 'Video broadcasting');
+            } catch (err) {
+                console.error('Video error:', err);
+                appendMessage('System', 'Video permission denied or unavailable');
+            }
+        };
+
+        window.playRemoteVideo = function() {
+            remoteVideo.play().then(() => {
+                document.getElementById('playOverlay').style.display = 'none';
+            }).catch(console.error);
+        };
+
+        window.saveJoinableFile = async function() {
+            try {
+                const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+                const filename = 'chat2_vid_' + room + '.html';
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                appendMessage('System', 'Saved ' + filename);
+            } catch (e) {
+                console.error(e);
+                appendMessage('System', 'Error saving file');
+            }
+        };
+
+        window.debugShareFile = function() {
+            if (!room) return;
+            var shareUrl = window.location.href.split('?')[0] + '?room=' + room;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(shareUrl).then(() => showToast('Debug URL copied'));
+            }
+            appendMessage('System', 'Debug URL: ' + shareUrl);
+        };
+
+        window.manualJoin = function() {
+            const val = document.getElementById('manualRoom').value.trim();
+            if (val) window.location.search = '?room=' + val;
+        };
+
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,473 @@
+<!--@platokit-cap
+main
+kind: search
+version: 1.0.0
+provides:
+  - searcher.search
+  - searcher.get_index
+  - searcher.get_recipes
+requires:
+  - bus_subscribe (hub)
+author: JC
+description: Capability discovery and search. Index of all caps, methods, bus wiring, and integration recipes.
+tags:
+  - search
+  - discovery
+  - index
+  - base
+-->
+<!--
+  #0v4# JC Feb 08, 2026   spawn_cap: hubbed links use postMessage to hub instead of target="_top" (blocked by sandbox).
+  #0v3# JC Feb 08, 2026   Data inline (self-contained), added LOAD_SETS full catalog, load set hotlinks in Recipes tab.
+  #0v2# JC Feb 08, 2026   Code splitting experiment (reverted - core cap needs to be self-contained).
+  #0v1# JC Feb 08, 2026   Initial searcher - static index, search, recipes, dependency graph.
+
+  ARCHITECTURE:
+  - Self-contained: INDEX, RECIPES, LOAD_SETS, BUS_TOPICS all inline
+  - search_index_kit.html exists as standalone-viewable reference + importable module for OTHER caps
+  - Recipes tab: curated combos (highlighted) + full load set catalog (all hotlinks)
+  - See search_main.md for design spec
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capability Search</title>
+  <style>
+    :root {
+      --c-bg: #ffffff; --c-bg-alt: #f8f9fa; --c-border: #dadce0; --c-border-focus: #1a73e8;
+      --c-text: #3c4043; --c-text-muted: #5f6368; --c-text-faint: #9aa0a6;
+      --c-accent: #1a73e8; --c-accent-light: #e8f0fe;
+      --c-success: #1e8e3e; --c-success-light: #e6f4ea;
+      --c-warn: #f9ab00; --c-error: #d93025;
+      --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--c-bg); color: var(--c-text); padding: 3% 5%; font-size: clamp(14px, 1.6vw, 18px); max-width: 900px; margin: 0 auto; }
+
+    .cap-title { font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; margin-bottom: clamp(8px, 1.5vw, 14px); }
+    .cap-sub { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-faint); margin-bottom: clamp(12px, 2vw, 20px); }
+
+    /* Search */
+    .search-wrap { position: relative; margin-bottom: clamp(14px, 2vw, 20px); }
+    #search { width: 100%; padding: 12px 16px 12px 40px; border: 2px solid var(--c-border); border-radius: 24px; font-size: clamp(15px, 1.6vw, 18px); font-family: var(--font); color: var(--c-text); outline: none; background: var(--c-bg); }
+    #search:focus { border-color: var(--c-accent); box-shadow: 0 0 0 3px var(--c-accent-light); }
+    .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--c-text-faint); font-size: 16px; pointer-events: none; }
+    .search-count { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: clamp(11px, 1.1vw, 13px); color: var(--c-text-faint); }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: clamp(12px, 1.5vw, 16px); border-bottom: 1px solid var(--c-border); }
+    .tab { padding: 8px 16px; border: none; background: none; font-size: clamp(13px, 1.3vw, 15px); font-family: var(--font); color: var(--c-text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: color 0.15s; }
+    .tab:hover { color: var(--c-text); }
+    .tab.active { color: var(--c-accent); border-bottom-color: var(--c-accent); font-weight: 500; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Cards */
+    .card { border: 1px solid var(--c-border); border-radius: 8px; padding: clamp(10px, 1.5vw, 16px); margin-bottom: 10px; transition: border-color 0.15s, box-shadow 0.15s; }
+    .card:hover { border-color: var(--c-text-faint); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .card-name { font-weight: 600; font-size: clamp(14px, 1.4vw, 16px); color: var(--c-text); }
+    .card-desc { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-muted); margin-top: 3px; }
+    .card-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag { display: inline-block; font-size: clamp(10px, 1vw, 12px); padding: 2px 8px; border-radius: 10px; background: var(--c-bg-alt); color: var(--c-text-muted); border: 1px solid var(--c-border); }
+    .tag-method { background: var(--c-accent-light); color: var(--c-accent); border-color: transparent; }
+    .tag-bus { background: var(--c-success-light); color: var(--c-success); border-color: transparent; }
+    .tag-req { background: #fef7e0; color: #e37400; border-color: transparent; }
+    .card-path { font-size: clamp(10px, 1vw, 12px); color: var(--c-text-faint); margin-top: 4px; font-family: monospace; }
+    .card-hidden { display: none; }
+    .card-actions { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .card-link { font-size: clamp(11px, 1.1vw, 13px); color: var(--c-accent); text-decoration: none; font-weight: 500; cursor: pointer; }
+    .card-link:hover { text-decoration: underline; }
+    .card-link-muted { color: var(--c-text-faint); }
+    .card-link-muted:hover { color: var(--c-text-muted); }
+    .card-sep { color: var(--c-border); font-size: 10px; }
+
+    /* Recipes */
+    .recipe { border: 1px solid var(--c-accent); border-radius: 8px; padding: clamp(12px, 1.5vw, 16px); margin-bottom: 10px; background: var(--c-accent-light); }
+    .recipe-name { font-weight: 600; font-size: clamp(14px, 1.4vw, 16px); color: var(--c-accent); }
+    .recipe-desc { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-muted); margin-top: 3px; }
+    .recipe-caps { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .recipe-cap { font-size: clamp(11px, 1.1vw, 13px); padding: 3px 10px; border-radius: 10px; background: var(--c-bg); border: 1px solid var(--c-border); color: var(--c-text); }
+    .recipe-link { display: inline-block; margin-top: 8px; font-size: clamp(12px, 1.2vw, 14px); color: var(--c-accent); text-decoration: none; font-weight: 500; cursor: pointer; }
+    .recipe-link:hover { text-decoration: underline; }
+
+    /* Graph */
+    .graph-node { display: inline-block; padding: 6px 12px; border-radius: 6px; margin: 3px; font-size: clamp(12px, 1.2vw, 14px); font-weight: 500; }
+    .graph-pub { background: var(--c-accent-light); color: var(--c-accent); }
+    .graph-sub { background: var(--c-success-light); color: var(--c-success); }
+    .graph-arrow { color: var(--c-text-faint); font-size: 14px; margin: 0 2px; }
+    .graph-row { margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+    .graph-topic { font-family: monospace; font-weight: 600; font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text); min-width: 120px; }
+  </style>
+</head>
+<body>
+
+  <div class="cap-title">Capability Search</div>
+  <div class="cap-sub">Find capabilities, see how they connect, launch integration recipes.</div>
+
+  <!-- SEARCH -->
+  <div class="search-wrap">
+    <span class="search-icon">&#9906;</span>
+    <input type="text" id="search" placeholder="Search caps, methods, tags..." oninput="doSearch()">
+    <span class="search-count" id="searchCount"></span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('caps')">Capabilities</button>
+    <button class="tab" onclick="showTab('recipes')">Recipes</button>
+    <button class="tab" onclick="showTab('graph')">Bus Graph</button>
+  </div>
+
+  <div class="tab-panel active" id="panel-caps"></div>
+  <div class="tab-panel" id="panel-recipes"></div>
+  <div class="tab-panel" id="panel-graph"></div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    var CAP_NAME = 'searcher';
+    var CAP_VERSION = '1.0.0';
+    var CAP_METHODS = ['search', 'get_index', 'get_recipes'];
+    var isHubbed = false;
+
+    try {
+      if (window.parent && window.parent !== window) {
+        parent.postMessage({ kind: 'register', v: 1, payload: { name: CAP_NAME, version: CAP_VERSION, methods: CAP_METHODS } }, '*');
+        isHubbed = true;
+      }
+    } catch (_) {}
+
+    // ========================================
+    // INLINE DATA (self-contained for reliability)
+    // Also mirrored in search_index_kit.html for other caps to import.
+    // When adding caps: update BOTH files, or just this one.
+    // ========================================
+    var INDEX = [
+      { name: 'chats_gateway_allenai', path: 'caps/chats/chat_gateway-allenai_kit.html', desc: 'Generic LLM service endpoint via Puter.js / Allen AI. Any cap can call or bus-request.', category: 'llm',
+        methods: ['send_prompt', 'get_status', 'get_history'], tags: ['llm', 'ai', 'chat', 'gateway'],
+        requires: ['store', 'open_tab', 'bus_publish', 'bus_subscribe'],
+        publishes: ['llm_status', 'help_response'], subscribes: ['help_request'] },
+
+      { name: 'chat2_vid', path: 'caps/chat_video/chat_video_kit.html', desc: 'WebRTC P2P video chat with auto-reconnect, MQTT signaling.', category: 'communication',
+        methods: ['get_room', 'set_room', 'send_message', 'get_status', 'start_video'], tags: ['chat', 'video', 'webrtc', 'p2p'],
+        requires: ['store', 'bus_publish'],
+        publishes: ['chat_room', 'chat_status'], subscribes: [] },
+
+      { name: 'help_hotline', path: 'caps/help/help_hotline_kit.html', desc: 'Help request form with per-service routing (Ask Mesh, Ask LLM). Key-based tracking.', category: 'workflow',
+        methods: ['submit_request', 'get_requests', 'get_status'], tags: ['help', 'form', 'routing', 'support'],
+        requires: ['store', 'bus_publish', 'bus_subscribe'],
+        publishes: ['help_request'], subscribes: ['chat_status', 'chat_room', 'llm_status', 'help_response'] },
+
+      { name: 'platokit_export_ui', path: 'platokit_export_ui.html', desc: 'Workspace export - JSON, compiled HTML, embedded bookmarklet.', category: 'admin',
+        methods: ['export.json', 'export.html', 'export.bookmarklet'], tags: ['export', 'compile', 'bookmarklet'],
+        requires: ['store'], publishes: [], subscribes: [] },
+
+      { name: 'send_msg', path: 'caps/base_pages/msg_send_kit.html', desc: 'Message broadcaster. Publish to topics, broadcast to all caps, discover services.', category: 'utility',
+        methods: ['msg.send', 'msg.broadcast'], tags: ['utility', 'debug', 'messaging'],
+        requires: ['capabilities', 'event_bus'],
+        publishes: ['(topic-based)'], subscribes: ['llm_responses', '_broadcast'] },
+
+      { name: 'searcher', path: 'caps/base_pages/search_main_kit.html', desc: 'Capability discovery, search, integration recipes, bus graph.', category: 'base',
+        methods: ['search', 'get_index', 'get_recipes'], tags: ['search', 'discovery', 'index'],
+        requires: [], publishes: [], subscribes: [] },
+
+      { name: 'input_user_list', path: 'caps/caps_samples/input_userlist.html', desc: 'User text input with hub-stored list. Basic data entry.', category: 'input',
+        methods: ['input.text', 'list.view'], tags: ['input', 'ui', 'list'],
+        requires: ['store.append', 'store.get'], publishes: [], subscribes: [] },
+
+      { name: 'input_user_list_submit_challenge', path: 'caps/caps_samples/input_submit-challenge.html', desc: 'Input list with per-item HTTP submission to configurable endpoint.', category: 'input',
+        methods: ['input.text', 'list.view', 'submit.item', 'submit.all'], tags: ['input', 'submit', 'challenge'],
+        requires: ['store.get', 'store.set'], publishes: [], subscribes: [] },
+
+      { name: 'localstorage', path: 'caps/base_pages/store_local_kit.html', desc: 'Key-value storage using localStorage and sessionStorage.', category: 'storage',
+        methods: ['storage.get', 'storage.set', 'storage.remove', 'storage.list', 'storage.clear'], tags: ['storage', 'persistence', 'core'],
+        requires: [], publishes: [], subscribes: [] },
+
+      { name: 'ping', path: 'caps/caps_samples/sample_ping.html', desc: 'Simple ping/pong test cap.', category: 'test',
+        methods: ['ping.respond'], tags: ['test', 'basic'], requires: [], publishes: [], subscribes: [] },
+      { name: 'echo', path: 'caps/caps_samples/sample_echo.html', desc: 'Echoes back any message sent.', category: 'test',
+        methods: ['echo.send'], tags: ['test', 'debug'], requires: [], publishes: [], subscribes: [] },
+      { name: 'clock', path: 'caps/caps_samples/sample_clock.html', desc: 'Real-time clock display.', category: 'test',
+        methods: ['clock.time', 'clock.date'], tags: ['display', 'time'], requires: [], publishes: [], subscribes: [] },
+      { name: 'counter', path: 'caps/caps_samples/sample_counter.html', desc: 'Simple counter with increment/decrement.', category: 'test',
+        methods: ['counter.get', 'counter.increment', 'counter.decrement', 'counter.reset'], tags: ['state', 'basic'], requires: [], publishes: [], subscribes: [] },
+      { name: 'storage_sample', path: 'caps/caps_samples/sample_storage.html', desc: 'LocalStorage key-value test cap.', category: 'test',
+        methods: ['storage.get', 'storage.set', 'storage.delete', 'storage.keys'], tags: ['storage', 'test'], requires: [], publishes: [], subscribes: [] },
+      { name: 'test_runner', path: 'caps/caps_samples/test_runner.html', desc: 'Built-in test runner for hub validation.', category: 'test',
+        methods: ['test.run', 'test.status'], tags: ['test', 'internal'], requires: [], publishes: [], subscribes: [] }
+    ];
+
+    var RECIPES = [
+      { name: 'Full Help Desk', desc: 'Help requests routed to LLM + mesh chat. Full bus wiring.', load_set: 'help_full',
+        caps: ['help_hotline', 'chats_gateway_allenai', 'chat2_vid'],
+        enables: 'Ask LLM + Ask Mesh both active. LLM auto-responds. Peer sees request in chat.' },
+      { name: 'Help + LLM', desc: 'Help form with LLM auto-response.', load_set: null,
+        caps: ['help_hotline', 'chats_gateway_allenai'],
+        tiles: 'caps/help/help_hotline_kit.html,caps/chats/chat_gateway-allenai_kit.html',
+        enables: 'Ask LLM active. LLM auto-processes via bus.' },
+      { name: 'Help + Mesh', desc: 'Help form with mesh chat routing.', load_set: 'help_chat',
+        caps: ['help_hotline', 'chat2_vid'],
+        enables: 'Ask Mesh active. Help request appears in chat for peer.' },
+      { name: 'Video + LLM', desc: 'Video chat with LLM on same bus.', load_set: 'video_llm',
+        caps: ['chat2_vid', 'chats_gateway_allenai'],
+        enables: 'Chat + LLM on same bus. Future: LLM auto-responds to chat.' },
+      { name: 'Full Chats Kit', desc: 'LLM gateway + workspace export.', load_set: 'chatskit',
+        caps: ['chats_gateway_allenai', 'platokit_export_ui'],
+        enables: 'LLM chat with export. Save conversations as portable HTML.' }
+    ];
+
+    // All registered load sets (full catalog from platokit)
+    var LOAD_SETS = [
+      { id: 'search', desc: 'Capability search', tiles: ['caps/base_pages/search_main_kit.html'] },
+      { id: 'samples_basic', desc: 'Ping + echo test', tiles: ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html'] },
+      { id: 'samples_all', desc: 'All sample caps', tiles: ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html', 'caps/caps_samples/sample_storage.html', 'caps/caps_samples/sample_clock.html', 'caps/caps_samples/sample_counter.html'] },
+      { id: 'test_runner', desc: 'Test runner', tiles: ['caps/caps_samples/test_runner.html'] },
+      { id: 'storage_test', desc: 'Storage cap test', tiles: ['caps/base_pages/store_local_kit.html', 'caps/caps_samples/sample_ping.html'] },
+      { id: 'input_list', desc: 'Input/list via hub store', tiles: ['caps/caps_samples/input_userlist.html'] },
+      { id: 'submit_challenge', desc: 'Input/list + HTTP submit', tiles: ['caps/caps_samples/input_submit-challenge.html'] },
+      { id: 'llm_chat', desc: 'Allen AI LLM chat', tiles: ['caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'llm_demo', desc: 'LLM + message sender', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'] },
+      { id: 'messaging', desc: 'Message broadcaster test', tiles: ['caps/base_pages/msg_send_kit.html', 'caps/caps_samples/sample_ping.html'] },
+      { id: 'llm_gateway', desc: 'Tab relay auth demo', tiles: ['caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'export', desc: 'Workspace export UI', tiles: ['platokit_export_ui.html'] },
+      { id: 'chatskit', desc: 'LLM + export kit', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'platokit_export_ui.html'] },
+      { id: 'video_chat', desc: 'WebRTC video chat', tiles: ['caps/chat_video/chat_video_kit.html'] },
+      { id: 'video_llm', desc: 'Video + LLM (bus)', tiles: ['caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'help', desc: 'Help hotline only', tiles: ['caps/help/help_hotline_kit.html'] },
+      { id: 'help_chat', desc: 'Help + mesh chat', tiles: ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html'] },
+      { id: 'help_full', desc: 'Help + chat + LLM', tiles: ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html'] },
+      { id: 'skin_demo', desc: 'Skin mode demo', tiles: ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'] }
+    ];
+
+    var BUS_TOPICS = {};
+    INDEX.forEach(function(c) {
+      (c.publishes || []).forEach(function(t) {
+        if (t === '(topic-based)') return;
+        if (!BUS_TOPICS[t]) BUS_TOPICS[t] = { publishers: [], subscribers: [] };
+        BUS_TOPICS[t].publishers.push(c.name);
+      });
+      (c.subscribes || []).forEach(function(t) {
+        if (t === '_broadcast') return;
+        if (!BUS_TOPICS[t]) BUS_TOPICS[t] = { publishers: [], subscribers: [] };
+        BUS_TOPICS[t].subscribers.push(c.name);
+      });
+    });
+
+    // ========================================
+    // LINK BUILDER
+    // Context-aware: file:// vs http:// vs hubbed
+    // When hubbed: uses spawn_cap postMessage (sandbox blocks target="_top")
+    // ========================================
+    var isFile = location.protocol === 'file:';
+    var baseDir = location.href.replace(/[\\\/][^\\\/]*$/, '/').replace(/caps\/base_pages\/$/, '');
+
+    // Ask hub to load a cap in a new slot via postMessage
+    // Exposed to window for onclick handlers
+    window.spawnCap = function(capUrl) {
+      if (!isHubbed) return;
+      parent.postMessage({ kind: 'spawn_cap', v: 1, payload: { url: capUrl } }, '*');
+    };
+
+    // Ask hub to load a load_set (multiple caps) via postMessage
+    window.spawnLoadSet = function(loadSetId) {
+      if (!isHubbed) return;
+      parent.postMessage({ kind: 'spawn_cap', v: 1, payload: { load_set: loadSetId } }, '*');
+    };
+
+    function buildLinks(capPath) {
+      var links = '';
+      if (isFile) {
+        // Standalone file:// context - link directly
+        var fileUrl = baseDir + capPath;
+        links += '<a class="card-link" href="' + fileUrl + '" target="_blank">Open standalone</a>';
+        var hubFile = baseDir + 'platokit.html?tiles=' + capPath;
+        links += '<span class="card-sep">|</span>';
+        links += '<a class="card-link card-link-muted" href="' + hubFile + '" target="_blank">Open in hub</a>';
+      } else if (isHubbed) {
+        // Running inside hub - use spawn_cap to add tile (sandbox blocks navigation)
+        links += '<a class="card-link" href="javascript:void(0)" onclick="spawnCap(\'' + capPath + '\')">+ Add to workspace</a>';
+      } else {
+        // http:// standalone
+        links += '<a class="card-link" href="' + capPath + '" target="_blank">Open standalone</a>';
+        links += '<span class="card-sep">|</span>';
+        links += '<a class="card-link card-link-muted" href="platokit.html?tiles=' + capPath + '" target="_blank">Open in hub</a>';
+      }
+      return links;
+    }
+
+    // ========================================
+    // RENDER
+    // ========================================
+    function renderCaps() {
+      var el = document.getElementById('panel-caps');
+      el.innerHTML = '';
+      INDEX.forEach(function(c, i) {
+        var div = document.createElement('div');
+        div.className = 'card';
+        div.dataset.idx = i;
+        div.dataset.search = [c.name, c.desc, c.category, c.methods.join(' '), c.tags.join(' '), (c.publishes||[]).join(' '), (c.subscribes||[]).join(' ')].join(' ').toLowerCase();
+
+        var methods = c.methods.map(function(m) { return '<span class="tag tag-method">' + m + '</span>'; }).join('');
+        var tags = c.tags.map(function(t) { return '<span class="tag">' + t + '</span>'; }).join('');
+        var bus = (c.publishes||[]).map(function(t) { return '<span class="tag tag-bus">pub:' + t + '</span>'; }).join('') +
+                  (c.subscribes||[]).map(function(t) { return '<span class="tag tag-bus">sub:' + t + '</span>'; }).join('');
+        var reqs = (c.requires||[]).map(function(r) { return '<span class="tag tag-req">' + r + '</span>'; }).join('');
+
+        div.innerHTML = '<div class="card-name">' + c.name + '</div>' +
+          '<div class="card-desc">' + c.desc + '</div>' +
+          '<div class="card-meta">' + methods + '</div>' +
+          (bus ? '<div class="card-meta">' + bus + '</div>' : '') +
+          (reqs ? '<div class="card-meta">' + reqs + '</div>' : '') +
+          '<div class="card-meta">' + tags + '</div>' +
+          '<div class="card-path">' + c.path + '</div>' +
+          '<div class="card-actions">' + buildLinks(c.path) + '</div>';
+        el.appendChild(div);
+      });
+      updateCount(INDEX.length);
+    }
+
+    function buildSetUrl(loadSetId, tiles) {
+      // When hubbed, return empty - we use spawnLoadSet() onclick instead
+      if (isHubbed) return 'javascript:void(0)';
+      if (isFile) return baseDir + 'platokit.html?load_set=' + loadSetId;
+      return 'platokit.html?load_set=' + loadSetId;
+    }
+
+    function renderRecipes() {
+      var el = document.getElementById('panel-recipes');
+      el.innerHTML = '';
+
+      // Curated recipes (highlighted combos)
+      if (RECIPES.length) {
+        var hdr = document.createElement('div');
+        hdr.className = 'section-label';
+        hdr.style.cssText = 'margin-bottom:8px';
+        hdr.textContent = 'Recommended Combos';
+        el.appendChild(hdr);
+      }
+      RECIPES.forEach(function(r) {
+        var div = document.createElement('div');
+        div.className = 'recipe';
+        var caps = r.caps.map(function(c) { return '<span class="recipe-cap">' + c + '</span>'; }).join('');
+        var url = r.load_set ? buildSetUrl(r.load_set) : (isFile ? baseDir : '') + 'platokit.html?tiles=' + (r.tiles || r.caps.map(function(c) { var m = INDEX.find(function(x){return x.name===c;}); return m ? m.path : c; }).join(','));
+        var launchAttr = (isHubbed && r.load_set) ? ' onclick="spawnLoadSet(\'' + r.load_set + '\')"' : (isHubbed ? '' : ' target="_blank"');
+        div.innerHTML = '<div class="recipe-name">' + r.name + '</div>' +
+          '<div class="recipe-desc">' + r.desc + '</div>' +
+          '<div class="recipe-caps">' + caps + '</div>' +
+          '<div class="card-desc" style="margin-top:6px;font-style:italic;">' + r.enables + '</div>' +
+          '<a class="recipe-link" href="' + url + '"' + launchAttr + '>Launch &rarr;</a>';
+        el.appendChild(div);
+      });
+
+      // All load sets (full catalog)
+      var hdr2 = document.createElement('div');
+      hdr2.className = 'section-label';
+      hdr2.style.cssText = 'margin-top:20px;margin-bottom:8px';
+      hdr2.textContent = 'All Load Sets (' + LOAD_SETS.length + ')';
+      el.appendChild(hdr2);
+
+      LOAD_SETS.forEach(function(s) {
+        var div = document.createElement('div');
+        div.className = 'card';
+        var tileNames = s.tiles.map(function(t) { return '<span class="tag">' + t.split('/').pop().replace('.html','') + '</span>'; }).join(' ');
+        var url = buildSetUrl(s.id, s.tiles);
+        div.innerHTML = '<div class="card-name">' + s.id + '</div>' +
+          '<div class="card-desc">' + s.desc + '</div>' +
+          '<div class="card-meta">' + tileNames + '</div>' +
+          '<div class="card-actions"><a class="card-link" href="' + url + '"' + (isHubbed ? ' onclick="spawnLoadSet(\'' + s.id + '\')"' : ' target="_blank"') + '>Launch in hub &rarr;</a></div>';
+        el.appendChild(div);
+      });
+    }
+
+    function renderGraph() {
+      var el = document.getElementById('panel-graph');
+      el.innerHTML = '';
+      var topics = Object.keys(BUS_TOPICS).sort();
+      topics.forEach(function(topic) {
+        var t = BUS_TOPICS[topic];
+        var row = document.createElement('div');
+        row.className = 'graph-row';
+        var pubs = t.publishers.map(function(p) { return '<span class="graph-node graph-pub">' + p + '</span>'; }).join('');
+        var subs = t.subscribers.map(function(s) { return '<span class="graph-node graph-sub">' + s + '</span>'; }).join('');
+        row.innerHTML = (pubs || '<span class="graph-node" style="opacity:0.3">?</span>') +
+          ' <span class="graph-arrow">&rarr;</span> <span class="graph-topic">' + topic + '</span> <span class="graph-arrow">&rarr;</span> ' +
+          (subs || '<span class="graph-node" style="opacity:0.3">?</span>');
+        el.appendChild(row);
+      });
+    }
+
+    // ========================================
+    // SEARCH
+    // ========================================
+    window.doSearch = function() {
+      var q = document.getElementById('search').value.toLowerCase().trim();
+      var cards = document.querySelectorAll('#panel-caps .card');
+      var shown = 0;
+      cards.forEach(function(card) {
+        if (!q || card.dataset.search.indexOf(q) !== -1) {
+          card.classList.remove('card-hidden');
+          shown++;
+        } else {
+          card.classList.add('card-hidden');
+        }
+      });
+      updateCount(shown);
+    };
+
+    function updateCount(n) {
+      document.getElementById('searchCount').textContent = n + ' / ' + INDEX.length;
+    }
+
+    // ========================================
+    // TABS
+    // ========================================
+    window.showTab = function(id) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelector('.tab[onclick*="' + id + '"]').classList.add('active');
+      document.getElementById('panel-' + id).classList.add('active');
+    };
+
+    // ========================================
+    // HUB MESSAGES
+    // ========================================
+    window.addEventListener('message', function(e) {
+      var d = e.data;
+      if (!d || !d.kind) return;
+      switch (d.kind) {
+        case 'registered': console.log('[searcher] Registered'); break;
+        case 'ping': parent.postMessage({ kind: 'pong', v: 1 }, '*'); break;
+        case 'call': handleCall(d.payload, d.id); break;
+        case 'unload': parent.postMessage({ kind: 'unloading', v: 1 }, '*'); break;
+      }
+    });
+
+    function handleCall(payload, id) {
+      var method = payload ? payload.method : null;
+      var result;
+      switch (method) {
+        case 'search':
+          var q = (payload.args && payload.args.query || '').toLowerCase();
+          result = INDEX.filter(function(c) { return [c.name, c.desc, c.methods.join(' '), c.tags.join(' ')].join(' ').toLowerCase().indexOf(q) !== -1; });
+          break;
+        case 'get_index': result = INDEX; break;
+        case 'get_recipes': result = RECIPES; break;
+        default: result = { error: 'unknown method: ' + method };
+      }
+      if (isHubbed && id) parent.postMessage({ kind: 'response', v: 1, payload: { id: id, result: result } }, '*');
+    }
+
+    // ========================================
+    // INIT
+    // ========================================
+    renderCaps();
+    renderRecipes();
+    renderGraph();
+
+  })();
+  </script>
+</body>
+</html>

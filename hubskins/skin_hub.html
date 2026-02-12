@@ -1,0 +1,1327 @@
+<!--@platokit-cap
+name: hub
+kind: skin
+type: skin
+version: 1.0.0
+author: panamantis
+description: Studio skin — sidebar nav, viewport layout, cap routing
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlatoKit Studio</title>
+    <style>
+        /* ========================================
+           COLOR PALETTE (Single source of truth)
+           ======================================== */
+        :root {
+            /* Backgrounds */
+            --c-bg-body: #ffffff;
+            --c-bg-sidebar: #f8f9fa;
+            --c-bg-hover: #e8eaed;
+            --c-bg-card: #ffffff;
+
+            /* Borders */
+            --c-border: #dadce0;
+            --c-border-focus: #1a73e8;
+
+            /* Text */
+            --c-text: #3c4043;
+            --c-text-muted: #5f6368;
+            --c-text-faint: #9aa0a6;
+
+            /* Accent - Primary (Blue) */
+            --c-accent: #1a73e8;
+            --c-accent-light: #e8f0fe;
+            --c-accent-dark: #1967d2;
+
+            /* Accent - Success (Green) */
+            --c-success: #1e8e3e;
+            --c-success-light: #e6f4ea;
+            --c-success-text: #137333;
+
+            /* Tools */
+            --c-tool: #c7e0c4;
+            --c-tool-active: #1e8e3e;
+
+            /* System */
+            --c-debug: #5f6368;
+            --c-chat: linear-gradient(135deg, #1a73e8, #4285f4);
+            --c-master: #202124;
+            --c-logo: #f97316;
+
+            /* Effects */
+            --shadow-card: 0 1px 3px 0 rgba(60,64,67,0.3);
+            --shadow-popup: 0 8px 32px rgba(0,0,0,0.15);
+            --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font);
+            background: var(--c-bg-body);
+            color: var(--c-text);
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: clamp(180px, 18vw, 280px) 1fr clamp(60px, 6vw, 90px);
+            grid-template-rows: 100vh;
+        }
+
+        /* --- LEFT SIDEBAR --- */
+        .sidebar-left {
+            background: var(--c-bg-sidebar);
+            border-right: 1px solid var(--c-border);
+            display: flex;
+            flex-direction: column;
+            padding: clamp(10px, 1.5vw, 18px);
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        .logo-area {
+            font-size: clamp(0.9rem, 1.2vw, 1.1rem);
+            font-weight: 500;
+            margin-bottom: clamp(16px, 2.5vw, 30px);
+            padding-left: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-icon {
+            width: clamp(16px, 1.8vw, 22px);
+            height: clamp(16px, 1.8vw, 22px);
+            background: var(--c-logo);
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .nav-btn {
+            display: block;
+            width: 100%;
+            padding: clamp(6px, 1vw, 10px) clamp(8px, 1vw, 12px);
+            margin-bottom: 6px;
+            background: transparent;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            text-align: left;
+            color: var(--c-text);
+            font-size: clamp(0.75rem, 1vw, 0.9rem);
+            font-weight: 500;
+            transition: background 0.1s;
+            position: relative;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .nav-btn:hover { background: var(--c-bg-hover); }
+        .nav-btn.primary { background: var(--c-accent-light); color: var(--c-accent-dark); }
+
+        .nav-btn .tooltip {
+            position: absolute;
+            left: calc(100% + 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--c-master);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
+        .nav-btn .tooltip::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-right-color: var(--c-master);
+            border-left: none;
+        }
+        .nav-btn:hover .tooltip { opacity: 1; }
+
+        .hot-links { margin-top: clamp(16px, 2vw, 30px); padding-left: 8px; flex: 1; overflow: hidden; }
+        .hot-links h4 {
+            font-size: clamp(0.65rem, 0.8vw, 0.75rem);
+            text-transform: uppercase;
+            color: var(--c-text-muted);
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .link-item {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--c-text-muted);
+            text-decoration: none;
+            font-size: clamp(0.75rem, 1vw, 0.9rem);
+            cursor: pointer;
+            transition: color 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .link-item:hover { color: var(--c-accent); }
+
+        .sidebar-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: clamp(8px, 1vw, 12px) 6px;
+            border-top: 1px solid var(--c-border);
+            margin-top: auto;
+        }
+        .user-avatar {
+            width: clamp(26px, 3vw, 34px);
+            height: clamp(26px, 3vw, 34px);
+            border-radius: 50%;
+            background: var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--c-text-faint);
+            font-size: clamp(0.65rem, 0.9vw, 0.8rem);
+            flex-shrink: 0;
+        }
+        .user-info {
+            flex: 1;
+            font-size: clamp(0.7rem, 0.9vw, 0.8rem);
+            color: var(--c-text-faint);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .settings-btn {
+            background: none;
+            border: none;
+            color: var(--c-text-faint);
+            cursor: pointer;
+            font-size: clamp(0.85rem, 1vw, 1rem);
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .settings-btn:hover { background: var(--c-bg-hover); }
+
+        .whatis-box {
+            margin-top: auto;
+            padding: clamp(8px, 1vw, 12px);
+            background: var(--c-accent-light);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .whatis-title {
+            font-size: clamp(0.7rem, 0.9vw, 0.8rem);
+            font-weight: 600;
+            color: var(--c-accent-dark);
+            margin-bottom: 6px;
+        }
+        .whatis-text {
+            font-size: clamp(0.65rem, 0.8vw, 0.75rem);
+            color: var(--c-text-muted);
+            line-height: 1.4;
+        }
+
+        /* --- MAIN CONTENT --- */
+        .main-stage {
+            display: flex;
+            flex-direction: column;
+            background: var(--c-bg-body);
+            position: relative;
+            z-index: 1;
+        }
+
+        .stage-header {
+            height: 48px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            justify-content: space-between;
+        }
+
+        .file-info { font-size: 1rem; }
+        .file-meta { font-size: 0.8rem; color: var(--c-text-faint); margin-left: 10px; }
+
+        .feed-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            position: relative;
+            padding: 2% 5%;
+            cursor: grab;
+        }
+        .feed-scroll-area:active { cursor: grabbing; }
+
+        .post-viewport {
+            background: var(--c-bg-card);
+            border: 1px solid var(--c-border);
+            border-radius: 12px;
+            height: 500px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-card);
+            position: relative;
+            padding: 15px;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        .post-viewport:hover { box-shadow: 0 4px 8px rgba(60,64,67,0.1); }
+        .post-viewport.blank-slot {
+            border-style: dashed;
+            border-color: var(--c-border);
+            background: var(--c-bg-sidebar);
+            height: 200px;
+            opacity: 0.7;
+            transition: opacity 0.2s, border-color 0.2s;
+        }
+        .post-viewport.blank-slot:hover { opacity: 1; border-color: var(--c-accent); }
+        .post-viewport.loading { border-color: var(--c-accent); }
+        .post-viewport.ready { border-color: var(--c-success); }
+
+        .vp-title {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--c-text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .vp-badge {
+            background: var(--c-success-light);
+            color: var(--c-success-text);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .vp-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #f5f5f5;
+        }
+
+        .vp-content iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .vp-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--c-text-faint);
+            font-size: 0.9rem;
+        }
+
+        /* Bottom Widget Panel */
+        .widget-panel {
+            height: 180px;
+            min-height: 100px;
+            max-height: 60vh;
+            flex-shrink: 0;
+            border-top: 1px solid var(--c-border);
+            background: var(--c-bg-card);
+            display: flex;
+            flex-direction: column;
+            z-index: 20;
+            position: relative;
+        }
+
+        .widget-resize-handle {
+            position: absolute;
+            top: -4px;
+            left: 0;
+            right: 0;
+            height: 8px;
+            cursor: ns-resize;
+            background: transparent;
+            z-index: 21;
+        }
+        .widget-resize-handle:hover,
+        .widget-resize-handle:active {
+            background: var(--c-accent-light);
+        }
+        .widget-resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 4px;
+            background: var(--c-border);
+            border-radius: 2px;
+        }
+
+        .widget-header {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--c-text-muted);
+            padding: 8px 16px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--c-border);
+            flex-shrink: 0;
+        }
+
+        .widget-content {
+            flex: 1;
+            background: var(--c-bg-sidebar);
+            padding: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .tile-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tool-tile {
+            width: calc(20% - 8px);
+            min-width: 140px;
+            max-width: 200px;
+            background: var(--c-bg-card);
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            padding: 10px;
+            position: relative;
+            transition: box-shadow 0.2s, border-color 0.2s;
+        }
+        .tool-tile:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .tool-tile.active { border-color: var(--c-success); }
+
+        .tile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .tile-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--c-text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tile-actions { display: flex; gap: 4px; }
+        .tile-btn {
+            width: 18px;
+            height: 18px;
+            border: none;
+            background: transparent;
+            color: var(--c-text-faint);
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tile-btn:hover { background: var(--c-bg-hover); color: var(--c-text); }
+
+        .tile-status {
+            font-size: 0.7rem;
+            color: var(--c-text-faint);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tile-status .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--c-success);
+        }
+        .tile-status .dot.loading { background: var(--c-accent); }
+        .tile-status .dot.error { background: #d93025; }
+
+        .empty-tiles {
+            color: var(--c-text-faint);
+            font-size: 0.85rem;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* --- RIGHT SIDEBAR --- */
+        .sidebar-right {
+            background: var(--c-bg-sidebar);
+            border-left: 1px solid var(--c-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            z-index: 4;
+        }
+
+        .tool-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .tool-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tool-circle {
+            width: clamp(36px, 4vw, 48px);
+            height: clamp(36px, 4vw, 48px);
+            border-radius: 50%;
+            background: var(--c-tool);
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            position: relative;
+            border: none;
+            font-size: clamp(1rem, 1.5vw, 1.3rem);
+        }
+        .tool-circle:hover { transform: scale(1.05); }
+        .tool-circle:active { cursor: grabbing; }
+        .tool-circle.active {
+            background: var(--c-tool-active);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .tool-emoji {
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .tool-status-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid var(--c-bg-sidebar);
+            background: var(--c-text-faint);
+            transition: background 0.3s;
+        }
+        .tool-status-dot.ready { background: var(--c-success); }
+        .tool-status-dot.loading { background: var(--c-accent); }
+        .tool-status-dot.error { background: #d93025; }
+        .tool-status-dot.idle { background: var(--c-text-faint); }
+
+        .tool-label {
+            font-size: clamp(0.55rem, 0.7vw, 0.65rem);
+            color: var(--c-text-muted);
+            text-align: center;
+            max-width: clamp(40px, 5vw, 56px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        .tool-circle .tool-tip {
+            position: absolute;
+            right: calc(100% + 12px);
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--c-master);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            white-space: normal;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
+            width: 160px;
+        }
+        .tool-circle .tool-tip::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-left-color: var(--c-master);
+            border-right: none;
+        }
+        .tool-circle:hover .tool-tip { opacity: 1; }
+        .tool-tip-title { font-weight: 600; margin-bottom: 4px; }
+        .tool-tip-desc { font-size: 0.7rem; color: rgba(255,255,255,0.7); line-height: 1.3; }
+
+        .sidebar-bottom {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            padding-top: 16px;
+            border-top: 1px solid var(--c-border);
+            margin-top: auto;
+        }
+
+        .debug-circle, .chat-circle, .platokit-circle {
+            width: clamp(36px, 4vw, 48px);
+            height: clamp(36px, 4vw, 48px);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: clamp(0.9rem, 1vw, 1.1rem);
+            transition: all 0.2s;
+            border: none;
+        }
+        .debug-circle { background: var(--c-debug); }
+        .debug-circle:hover { transform: scale(1.05); opacity: 0.9; }
+
+        .chat-circle {
+            background: var(--c-chat);
+            box-shadow: 0 2px 8px rgba(26,115,232,0.3);
+        }
+        .chat-circle:hover { transform: scale(1.05); }
+
+        .platokit-circle {
+            background: #111;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        .platokit-circle:hover { transform: scale(1.05); background: #333; }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--c-master);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #d93025; }
+        .toast.success { background: var(--c-success); }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar-left">
+        <div class="logo-area">
+            <a href="https://github.com/algchain/algkit" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:8px;">
+                <div class="logo-icon"></div> PlatoKit Studio
+            </a>
+        </div>
+
+        <a class="nav-btn" href="https://github.com/algchain/algkit" target="_blank" rel="noopener" style="text-decoration:none;">
+            &#128279; Source Code
+            <span class="tooltip">View source on GitHub</span>
+        </a>
+        <button class="nav-btn primary" data-action="new_prompt">
+            + New Slot
+            <span class="tooltip">Add new capability slot</span>
+        </button>
+        <button class="nav-btn" data-action="my_library">
+            Load Sets
+            <span class="tooltip">Browse load sets</span>
+        </button>
+
+        <div class="hot-links" id="vpHotlinks">
+            <h4>Viewports</h4>
+            <a class="link-item" id="vpLink1" onclick="SkinUI.scrollToViewport('vp1')"># PlatoKit Studio</a>
+            <a class="link-item" id="vpLink2" onclick="SkinUI.scrollToViewport('vp2')"># PlatoKit Studio</a>
+            <a class="link-item" id="vpLink3" onclick="SkinUI.scrollToViewport('vp3')"># PlatoKit Studio</a>
+        </div>
+
+        <div class="whatis-box">
+            <div class="whatis-title">What is PlatoKit?</div>
+            <div class="whatis-text">You own your PlatoKit workspace. Expand it by dragging in tools from the left, drag in tools from <a href="https://github.com/algchain/algkit" target="_blank" rel="noopener" style="color:var(--c-accent)">GitHub</a>, or customize your own experience. It's an App Store you can use offline, privately, on your own terms.</div>
+        </div>
+
+        <div class="sidebar-user">
+            <div class="user-avatar">P</div>
+            <div class="user-info">PlatoKit User</div>
+            <button class="settings-btn" title="Settings">&#9881;</button>
+        </div>
+    </aside>
+
+    <!-- CENTER STAGE -->
+    <main class="main-stage">
+        <header class="stage-header">
+            <div>
+                <span class="file-info">PlatoKit Workspace</span>
+                <span class="file-meta" id="statusMeta">Connecting...</span>
+            </div>
+            <div style="background:var(--c-accent-light); color:var(--c-accent); padding:8px 20px; border-radius:4px; font-size:0.9rem; font-weight:500; cursor:pointer;" data-action="run_click">
+                &#9658; Run
+            </div>
+        </header>
+
+        <div class="feed-scroll-area" id="feedScroll">
+            <div class="post-viewport" id="vp1" data-viewport="vp1">
+                <div class="vp-title">
+                    <span class="vp-title-text">PlatoKit Studio</span>
+                    <span class="vp-badge" style="display:none"></span>
+                </div>
+                <div class="vp-content">
+                    <div class="vp-placeholder">Drop a tool here to load capability</div>
+                </div>
+            </div>
+
+            <div class="post-viewport" id="vp2" data-viewport="vp2">
+                <div class="vp-title">
+                    <span class="vp-title-text">PlatoKit Studio</span>
+                    <span class="vp-badge" style="display:none"></span>
+                </div>
+                <div class="vp-content">
+                    <div class="vp-placeholder">Drop a tool here to load capability</div>
+                </div>
+            </div>
+
+            <div class="post-viewport" id="vp3" data-viewport="vp3">
+                <div class="vp-title">
+                    <span class="vp-title-text">PlatoKit Studio</span>
+                    <span class="vp-badge" style="display:none"></span>
+                </div>
+                <div class="vp-content">
+                    <div class="vp-placeholder">Drop a tool here to load capability</div>
+                </div>
+            </div>
+
+            <div class="post-viewport blank-slot" id="vpBlank" data-viewport="vpBlank">
+                <div class="vp-title">
+                    <span class="vp-title-text" style="color:var(--c-text-faint)">+ Add Capability</span>
+                </div>
+                <div class="vp-content">
+                    <div class="vp-placeholder">Drop a tool or file here to add another capability</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="widget-panel" id="widgetPanel">
+            <div class="widget-resize-handle" id="widgetResizeHandle"></div>
+            <div class="widget-header">Loaded Capabilities</div>
+            <div class="widget-content" id="widgetContent">
+                <div class="tile-grid" id="tileGrid">
+                    <div class="empty-tiles">No capabilities loaded yet...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR -->
+    <aside class="sidebar-right">
+        <div class="tool-container" id="toolContainer">
+            <!-- Tools populated by hub -->
+        </div>
+
+        <div class="sidebar-bottom">
+            <button class="debug-circle" id="debugBtn" title="System Logs">&#9881;</button>
+            <button class="chat-circle" id="chatBtn" title="AI Chat">&#128172;</button>
+            <button class="platokit-circle" id="platokitBtn" title="Toggle Debug View">P</button>
+        </div>
+    </aside>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // =====================================================================
+        // HUB BRIDGE - Communication layer with parent hub
+        // =====================================================================
+        const HubBridge = {
+            ready: false,
+
+            // Send action to hub
+            send: function(action, data = {}) {
+                parent.postMessage({
+                    kind: 'skin_action',
+                    v: 1,
+                    payload: { action, ...data }
+                }, '*');
+            },
+
+            // Signal ready to hub
+            signalReady: function() {
+                this.send('ready');
+                this.ready = true;
+            },
+
+            // Request current state from hub
+            requestState: function() {
+                this.send('request_state');
+            }
+        };
+
+        // =====================================================================
+        // SKIN UI - Local UI state and rendering
+        // =====================================================================
+        const SkinUI = {
+            tools: [],
+            tiles: [],
+            viewportAssignments: {}, // viewport -> {slotId, capName, status}
+            viewportIframes: {},     // viewport -> iframe element (for message routing)
+
+            // Initialize UI
+            init: function() {
+                this.setupEventListeners();
+                this.setupDragDrop();
+                this.setupResizeHandle();
+
+                // Signal ready after short delay
+                setTimeout(() => {
+                    HubBridge.signalReady();
+                    document.getElementById('statusMeta').textContent = 'Connected';
+                }, 100);
+            },
+
+            // Setup event listeners
+            setupEventListeners: function() {
+                // Nav buttons
+                document.querySelectorAll('[data-action]').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const action = el.dataset.action;
+                        if (action === 'run_click') {
+                            HubBridge.send('run_click');
+                        } else {
+                            HubBridge.send('nav_click', { item: action });
+                        }
+                    });
+                });
+
+                // Debug button - toggle hub view
+                document.getElementById('debugBtn').addEventListener('click', () => {
+                    HubBridge.send('toggle_debug');
+                });
+
+                // Hub debug button
+                document.getElementById('platokitBtn').addEventListener('click', () => {
+                    HubBridge.send('toggle_debug');
+                });
+
+                // Chat button (placeholder)
+                document.getElementById('chatBtn').addEventListener('click', () => {
+                    this.showToast('Chat not implemented yet', 'info');
+                });
+            },
+
+            // Setup drag and drop for tools -> viewports
+            setupDragDrop: function() {
+                const self = this;
+
+                // CRITICAL: Prevent browser from navigating to dropped files
+                document.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+                document.addEventListener('drop', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Handle file drops on body (not on viewports)
+                    if (!e.target.closest('.post-viewport')) {
+                        self.handleFileDrop(e);
+                    }
+                });
+
+                // Attach handlers to all initial viewports (including blank)
+                document.querySelectorAll('.post-viewport').forEach(vp => {
+                    self.setupViewportDrop(vp);
+                });
+            },
+
+            // Handle file drop (HTML files)
+            handleFileDrop: function(e, viewport) {
+                const files = e.dataTransfer?.files;
+                if (files && files.length > 0) {
+                    const file = files[0];
+                    if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+                        const reader = new FileReader();
+                        reader.onload = evt => {
+                            // Send file content to hub
+                            HubBridge.send('load_cap', {
+                                viewport: viewport || 'vp1',
+                                capType: 'file',
+                                capUrl: null,
+                                fileContent: evt.target.result,
+                                fileName: file.name
+                            });
+                            this.showToast(`Loading ${file.name}...`, 'info');
+                        };
+                        reader.readAsText(file);
+                        return;
+                    }
+                }
+
+                // Check for URL drop
+                if (e.dataTransfer?.items) {
+                    for (let item of e.dataTransfer.items) {
+                        if (item.type === 'text/uri-list') {
+                            item.getAsString(url => {
+                                HubBridge.send('load_cap', {
+                                    viewport: viewport || 'vp1',
+                                    capType: 'url',
+                                    capUrl: url
+                                });
+                                this.showToast(`Loading URL...`, 'info');
+                            });
+                            return;
+                        }
+                    }
+                }
+            },
+
+            // Setup resize handle for widget panel
+            setupResizeHandle: function() {
+                const handle = document.getElementById('widgetResizeHandle');
+                const panel = document.getElementById('widgetPanel');
+                let isResizing = false;
+                let startY, startHeight;
+
+                handle.addEventListener('mousedown', e => {
+                    isResizing = true;
+                    startY = e.clientY;
+                    startHeight = panel.offsetHeight;
+                    document.body.style.cursor = 'ns-resize';
+                    e.preventDefault();
+                });
+
+                document.addEventListener('mousemove', e => {
+                    if (!isResizing) return;
+                    const delta = startY - e.clientY;
+                    const newHeight = Math.max(100, Math.min(window.innerHeight * 0.6, startHeight + delta));
+                    panel.style.height = newHeight + 'px';
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isResizing) {
+                        isResizing = false;
+                        document.body.style.cursor = '';
+                    }
+                });
+            },
+
+            // Render tools in right sidebar (v2: emoji + label + status dot)
+            renderTools: function(tools) {
+                this.tools = tools;
+                const container = document.getElementById('toolContainer');
+                container.innerHTML = '';
+
+                tools.forEach((tool, idx) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'tool-wrap';
+
+                    const circle = document.createElement('div');
+                    circle.className = 'tool-circle';
+                    circle.draggable = true;
+                    circle.dataset.toolId = tool.id;
+                    circle.dataset.toolUrl = tool.url;
+
+                    const statusClass = tool.status || 'idle';
+
+                    circle.innerHTML = `
+                        <span class="tool-emoji">${tool.emoji || ''}</span>
+                        <span class="tool-status-dot ${statusClass}" data-tool-status="${tool.id}"></span>
+                        <div class="tool-tip">
+                            <div class="tool-tip-title">${tool.label || tool.name || tool.id}</div>
+                            <div class="tool-tip-desc">${tool.desc || tool.url || 'Capability'}</div>
+                        </div>
+                    `;
+
+                    circle.addEventListener('dragstart', e => {
+                        e.dataTransfer.setData('toolId', tool.id);
+                        e.dataTransfer.setData('toolUrl', tool.url);
+                        e.dataTransfer.effectAllowed = 'copy';
+                    });
+
+                    // Click to load in first empty viewport
+                    circle.addEventListener('click', () => {
+                        HubBridge.send('tool_click', { toolId: tool.id });
+                    });
+
+                    wrap.appendChild(circle);
+
+                    // Label below circle
+                    const label = document.createElement('div');
+                    label.className = 'tool-label';
+                    label.textContent = tool.label || tool.name || tool.id;
+                    wrap.appendChild(label);
+
+                    container.appendChild(wrap);
+                });
+            },
+
+            // Update a single tool circle's status dot
+            updateToolStatus: function(toolId, status, detail) {
+                const dot = document.querySelector(`[data-tool-status="${toolId}"]`);
+                if (dot) {
+                    dot.className = 'tool-status-dot ' + (status || 'idle');
+                }
+                // Update tooltip detail if circle exists
+                const circle = document.querySelector(`[data-tool-id="${toolId}"]`);
+                if (circle && detail) {
+                    const descEl = circle.querySelector('.tool-tip-desc');
+                    if (descEl) {
+                        // Find original desc from tools array
+                        const tool = this.tools.find(t => t.id === toolId);
+                        const baseDesc = tool ? (tool.desc || tool.url || '') : '';
+                        descEl.textContent = detail ? `${baseDesc} (${detail})` : baseDesc;
+                    }
+                }
+            },
+
+            // Render tiles in widget panel
+            renderTiles: function(tiles) {
+                this.tiles = tiles;
+                const grid = document.getElementById('tileGrid');
+
+                if (!tiles || tiles.length === 0) {
+                    grid.innerHTML = '<div class="empty-tiles">No capabilities loaded yet...</div>';
+                    return;
+                }
+
+                grid.innerHTML = '';
+
+                tiles.forEach(tile => {
+                    const div = document.createElement('div');
+                    div.className = 'tool-tile' + (tile.status === 'ready' ? ' active' : '');
+
+                    const statusClass = tile.status === 'ready' ? '' :
+                                        tile.status === 'loading' ? ' loading' :
+                                        tile.status === 'error' ? ' error' : '';
+
+                    div.innerHTML = `
+                        <div class="tile-header">
+                            <span class="tile-title">${tile.name}</span>
+                            <div class="tile-actions">
+                                <button class="tile-btn" data-action="ping" title="Ping">&#8635;</button>
+                                <button class="tile-btn" data-action="close" title="Close">&#10005;</button>
+                            </div>
+                        </div>
+                        <div class="tile-status">
+                            <span class="dot${statusClass}"></span>
+                            ${tile.status} ${tile.methods?.length ? '· ' + tile.methods.join(', ') : ''}
+                        </div>
+                    `;
+
+                    // Tile actions
+                    div.querySelectorAll('.tile-btn').forEach(btn => {
+                        btn.addEventListener('click', e => {
+                            e.stopPropagation();
+                            HubBridge.send('tile_action', {
+                                slotId: tile.slotId,
+                                tileAction: btn.dataset.action
+                            });
+                        });
+                    });
+
+                    grid.appendChild(div);
+                });
+            },
+
+            // Update viewport display
+            updateViewport: function(data) {
+                const vp = document.getElementById(data.viewport);
+                if (!vp) return;
+
+                this.viewportAssignments[data.viewport] = data;
+
+                // Update title badge
+                const badge = vp.querySelector('.vp-badge');
+                if (badge && data.capName) {
+                    badge.textContent = data.capName;
+                    badge.style.display = '';
+                }
+
+                // Rename viewport title + sidebar hotlink
+                this.updateViewportLabel(data.viewport, data.capName);
+
+                // Update status class
+                vp.classList.remove('loading', 'ready', 'error');
+                if (data.status) {
+                    vp.classList.add(data.status);
+                }
+
+                // Reset to default if viewport emptied
+                if (data.status === 'empty' || !data.capName) {
+                    this.updateViewportLabel(data.viewport, null);
+                }
+            },
+
+            // Ensure there's always a blank slot at the bottom
+            ensureBlankSlot: function() {
+                const feed = document.getElementById('feedScroll');
+                let blank = document.getElementById('vpBlank');
+                // If blank was consumed (cap loaded into it), create a new one
+                if (!blank || blank.dataset.consumed === 'true') {
+                    const idx = feed.querySelectorAll('.post-viewport').length + 1;
+                    const newId = 'vpDyn' + idx;
+                    const div = document.createElement('div');
+                    div.className = 'post-viewport blank-slot';
+                    div.id = 'vpBlank';
+                    div.dataset.viewport = newId;
+                    div.innerHTML = `
+                        <div class="vp-title">
+                            <span class="vp-title-text" style="color:var(--c-text-faint)">+ Add Capability</span>
+                        </div>
+                        <div class="vp-content">
+                            <div class="vp-placeholder">Drop a tool or file here to add another capability</div>
+                        </div>
+                    `;
+                    feed.appendChild(div);
+                    this.setupViewportDrop(div);
+                }
+            },
+
+            // Setup drop handler on a single viewport element
+            setupViewportDrop: function(vp) {
+                const self = this;
+                vp.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    vp.style.borderColor = 'var(--c-accent)';
+                });
+                vp.addEventListener('dragleave', () => {
+                    vp.style.borderColor = '';
+                });
+                vp.addEventListener('drop', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    vp.style.borderColor = '';
+
+                    const toolId = e.dataTransfer.getData('toolId');
+                    const toolUrl = e.dataTransfer.getData('toolUrl');
+                    const viewport = vp.dataset.viewport;
+
+                    if (toolId) {
+                        HubBridge.send('load_cap', {
+                            viewport: viewport,
+                            capType: toolId,
+                            capUrl: toolUrl
+                        });
+                        self.showToast(`Loading ${toolId}...`, 'info');
+                        return;
+                    }
+                    self.handleFileDrop(e, viewport);
+                });
+            },
+
+            // Create iframe inside viewport (cap lives here, messages relay to hub)
+            createViewportIframe: function(data) {
+                const vp = document.getElementById(data.viewport);
+                if (!vp) {
+                    console.error('skin: viewport not found:', data.viewport);
+                    return;
+                }
+
+                const content = vp.querySelector('.vp-content');
+                if (!content) return;
+
+                // Clear placeholder
+                content.innerHTML = '';
+
+                // Create iframe with standard cap permissions
+                const iframe = document.createElement('iframe');
+                iframe.style.cssText = 'width:100%;height:100%;border:none;';
+                // Match hub's default cap permissions (allow popups for auth flows like Puter.js)
+                iframe.sandbox = 'allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox';
+
+                // Track for message routing
+                this.viewportIframes[data.viewport] = iframe;
+                this.viewportAssignments[data.viewport] = {
+                    slotId: data.slotId,
+                    capName: data.capName,
+                    status: 'loading'
+                };
+
+                // Load content
+                if (data.srcdoc) {
+                    iframe.srcdoc = data.srcdoc;
+                } else if (data.src) {
+                    iframe.src = data.src;
+                }
+
+                content.appendChild(iframe);
+
+                // Update viewport visuals
+                const badge = vp.querySelector('.vp-badge');
+                if (badge && data.capName) {
+                    badge.textContent = data.capName;
+                    badge.style.display = '';
+                }
+                vp.classList.add('loading');
+
+                // Rename viewport title + sidebar hotlink to cap name
+                this.updateViewportLabel(data.viewport, data.capName);
+
+                // If this was the blank slot, promote it and create a new blank
+                if (vp.classList.contains('blank-slot')) {
+                    vp.classList.remove('blank-slot');
+                    vp.style.height = '';
+                    vp.style.opacity = '';
+                    vp.style.borderStyle = '';
+                    vp.style.background = '';
+                    vp.dataset.consumed = 'true';
+                    vp.removeAttribute('id'); // release vpBlank id
+                    this.ensureBlankSlot();
+                }
+
+                console.log('skin: created iframe in', data.viewport, 'for', data.capName);
+            },
+
+            // Send message to a cap iframe in a viewport
+            sendToViewportCap: function(viewport, message) {
+                const iframe = this.viewportIframes[viewport];
+                if (iframe?.contentWindow) {
+                    iframe.contentWindow.postMessage(message, '*');
+                }
+            },
+
+            // Find which viewport an iframe belongs to (for relay routing)
+            getViewportForIframe: function(iframeWindow) {
+                for (const [viewport, iframe] of Object.entries(this.viewportIframes)) {
+                    if (iframe.contentWindow === iframeWindow) {
+                        return viewport;
+                    }
+                }
+                return null;
+            },
+
+            // Show toast notification
+            showToast: function(message, type = 'info') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = 'toast show' + (type !== 'info' ? ' ' + type : '');
+                setTimeout(() => toast.classList.remove('show'), 3000);
+            },
+
+            // Update viewport title + sidebar hotlink label
+            updateViewportLabel: function(vpId, capName) {
+                const vp = document.getElementById(vpId);
+                if (vp) {
+                    const titleSpan = vp.querySelector('.vp-title-text');
+                    if (titleSpan) titleSpan.textContent = capName || 'PlatoKit Studio';
+                }
+                // Mirror to sidebar hotlink
+                const linkMap = { vp1: 'vpLink1', vp2: 'vpLink2', vp3: 'vpLink3' };
+                const link = document.getElementById(linkMap[vpId]);
+                if (link) link.textContent = '# ' + (capName || 'PlatoKit Studio');
+            },
+
+            // Scroll to viewport
+            scrollToViewport: function(id) {
+                const el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }
+        };
+
+        // Make SkinUI globally accessible
+        window.SkinUI = SkinUI;
+
+        // =====================================================================
+        // MESSAGE HANDLER - Receive render commands from hub AND relay cap messages
+        // =====================================================================
+        window.onmessage = function(e) {
+            const d = e.data;
+            if (!d) return;
+
+            // Check if this is a message FROM a cap iframe (needs relay to hub)
+            const viewport = SkinUI.getViewportForIframe(e.source);
+            if (viewport && d.kind && d.kind !== 'skin_render') {
+                // This is a cap message - relay to hub
+                HubBridge.send('relay_cap_message', {
+                    viewport: viewport,
+                    innerMessage: d
+                });
+                return;
+            }
+
+            // Handle hub render commands
+            if (d.kind !== 'skin_render') return;
+
+            const payload = d.payload || {};
+            const component = payload.component;
+
+            switch (component) {
+                case 'tools':
+                    SkinUI.renderTools(payload.items || []);
+                    break;
+
+                case 'tiles':
+                    SkinUI.renderTiles(payload.items || []);
+                    break;
+
+                case 'viewport_update':
+                    SkinUI.updateViewport(payload);
+                    break;
+
+                case 'viewport_iframe':
+                    // Hub tells us to create an iframe in a viewport
+                    SkinUI.createViewportIframe(payload);
+                    break;
+
+                case 'cap_message':
+                    // Hub sends a message to forward to a cap iframe
+                    SkinUI.sendToViewportCap(payload.viewport, payload.message);
+                    break;
+
+                case 'tool_status':
+                    SkinUI.updateToolStatus(payload.toolId, payload.status, payload.detail);
+                    break;
+
+                case 'toast':
+                    SkinUI.showToast(payload.message, payload.type);
+                    break;
+
+                case 'nav':
+                    // Update nav items (future)
+                    break;
+
+                default:
+                    console.log('skin: unknown render component:', component);
+            }
+        };
+
+        // =====================================================================
+        // INITIALIZATION
+        // =====================================================================
+        SkinUI.init();
+
+    })();
+    </script>
+</body>
+</html>

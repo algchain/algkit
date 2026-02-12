@@ -1,0 +1,381 @@
+<!--@platokit-cap
+local
+kind: store
+version: 1.0.0
+provides:
+  - storage.get
+  - storage.set
+  - storage.remove
+  - storage.list
+  - storage.clear
+  - session.get
+  - session.set
+  - session.remove
+  - session.clear
+requires: []
+author: only_sims
+license: MIT
+description: Key-value storage using localStorage (persistent) and sessionStorage (tab-scoped)
+tags:
+  - storage
+  - persistence
+  - core
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { background: #1a1a1a; color: #0f0; font-family: monospace; padding: 8px; margin: 0; font-size: 11px; }
+    .title { color: #0ff; margin-bottom: 5px; }
+    .status { display: flex; gap: 15px; flex-wrap: wrap; }
+    .status span { white-space: nowrap; }
+    .yes { color: #0f0; }
+    .no { color: #f44; }
+    .warn { color: #ff0; }
+    .stats { margin-top: 5px; color: #888; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <div class="title">Storage Cap</div>
+  <div class="status">
+    <span>localStorage: <span id="ls-status">?</span></span>
+    <span>sessionStorage: <span id="ss-status">?</span></span>
+    <span>persist: <span id="persist-status">?</span></span>
+  </div>
+  <div class="stats" id="stats">ops: 0</div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      const CAP_NAME = 'localstorage';
+      const CAP_VERSION = '1.0.0';
+      const CAP_METHODS = [
+        'storage.get', 'storage.set', 'storage.remove', 'storage.list', 'storage.clear',
+        'session.get', 'session.set', 'session.remove', 'session.clear',
+        'test', 'stats'
+      ];
+
+      const PREFIX = 'hub_';  // Namespace all keys
+      let opCount = 0;
+      let lsAvailable = false;
+      let ssAvailable = false;
+      let persistCheck = null;
+
+      // DOM
+      const $lsStatus = document.getElementById('ls-status');
+      const $ssStatus = document.getElementById('ss-status');
+      const $persistStatus = document.getElementById('persist-status');
+      const $stats = document.getElementById('stats');
+
+      // ========================================
+      // SELF-TEST
+      // ========================================
+      function selfTest() {
+        const testKey = PREFIX + '_selftest_' + Date.now();
+        const testVal = 'test_' + Math.random();
+        const persistKey = PREFIX + '_persist_check';
+
+        // Test localStorage
+        try {
+          localStorage.setItem(testKey, testVal);
+          const retrieved = localStorage.getItem(testKey);
+          localStorage.removeItem(testKey);
+          lsAvailable = (retrieved === testVal);
+        } catch (e) {
+          lsAvailable = false;
+        }
+
+        // Test sessionStorage
+        try {
+          sessionStorage.setItem(testKey, testVal);
+          const retrieved = sessionStorage.getItem(testKey);
+          sessionStorage.removeItem(testKey);
+          ssAvailable = (retrieved === testVal);
+        } catch (e) {
+          ssAvailable = false;
+        }
+
+        // Persistence check (localStorage only)
+        if (lsAvailable) {
+          try {
+            const lastVisit = localStorage.getItem(persistKey);
+            const now = Date.now();
+            localStorage.setItem(persistKey, now.toString());
+
+            if (lastVisit) {
+              const elapsed = now - parseInt(lastVisit, 10);
+              if (elapsed < 60000) {
+                persistCheck = Math.round(elapsed / 1000) + 's ago';
+              } else if (elapsed < 3600000) {
+                persistCheck = Math.round(elapsed / 60000) + 'm ago';
+              } else {
+                persistCheck = Math.round(elapsed / 3600000) + 'h ago';
+              }
+            } else {
+              persistCheck = 'first visit';
+            }
+          } catch (e) {
+            persistCheck = 'error';
+          }
+        }
+
+        updateUI();
+
+        return {
+          localStorage: lsAvailable,
+          sessionStorage: ssAvailable,
+          persistCheck: persistCheck
+        };
+      }
+
+      function updateUI() {
+        $lsStatus.className = lsAvailable ? 'yes' : 'no';
+        $lsStatus.textContent = lsAvailable ? 'yes' : 'no';
+
+        $ssStatus.className = ssAvailable ? 'yes' : 'no';
+        $ssStatus.textContent = ssAvailable ? 'yes' : 'no';
+
+        $persistStatus.className = persistCheck === 'first visit' ? 'warn' : (persistCheck ? 'yes' : 'no');
+        $persistStatus.textContent = persistCheck || '?';
+
+        $stats.textContent = `ops: ${opCount}`;
+      }
+
+      // ========================================
+      // STORAGE OPERATIONS
+      // ========================================
+
+      // Get the appropriate storage backend
+      function getBackend(type) {
+        if (type === 'session') {
+          return ssAvailable ? sessionStorage : null;
+        }
+        return lsAvailable ? localStorage : null;
+      }
+
+      // GET - retrieve value by key
+      function doGet(backend, key) {
+        if (!backend) return { error: 'storage unavailable' };
+        try {
+          const raw = backend.getItem(PREFIX + key);
+          if (raw === null) return { value: null, exists: false };
+
+          // Try to parse as JSON, fall back to raw string
+          try {
+            return { value: JSON.parse(raw), exists: true };
+          } catch {
+            return { value: raw, exists: true };
+          }
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+
+      // SET - store value by key
+      function doSet(backend, key, value) {
+        if (!backend) return { error: 'storage unavailable' };
+        try {
+          const toStore = typeof value === 'string' ? value : JSON.stringify(value);
+          backend.setItem(PREFIX + key, toStore);
+          return { success: true, key: key };
+        } catch (e) {
+          // Likely quota exceeded
+          return { error: e.message };
+        }
+      }
+
+      // REMOVE - delete key
+      function doRemove(backend, key) {
+        if (!backend) return { error: 'storage unavailable' };
+        try {
+          const existed = backend.getItem(PREFIX + key) !== null;
+          backend.removeItem(PREFIX + key);
+          return { success: true, existed: existed };
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+
+      // LIST - list all keys (with optional prefix filter)
+      function doList(backend, filterPrefix) {
+        if (!backend) return { error: 'storage unavailable' };
+        try {
+          const keys = [];
+          const fullPrefix = PREFIX + (filterPrefix || '');
+
+          for (let i = 0; i < backend.length; i++) {
+            const key = backend.key(i);
+            if (key && key.startsWith(fullPrefix)) {
+              // Return key without our internal prefix
+              keys.push(key.slice(PREFIX.length));
+            }
+          }
+          return { keys: keys, count: keys.length };
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+
+      // CLEAR - remove all keys (with optional prefix filter)
+      function doClear(backend, filterPrefix) {
+        if (!backend) return { error: 'storage unavailable' };
+        try {
+          const fullPrefix = PREFIX + (filterPrefix || '');
+          const toRemove = [];
+
+          for (let i = 0; i < backend.length; i++) {
+            const key = backend.key(i);
+            if (key && key.startsWith(fullPrefix)) {
+              toRemove.push(key);
+            }
+          }
+
+          toRemove.forEach(k => backend.removeItem(k));
+          return { success: true, removed: toRemove.length };
+        } catch (e) {
+          return { error: e.message };
+        }
+      }
+
+      // STATS - get storage statistics
+      function doStats() {
+        const result = {
+          localStorage: { available: lsAvailable, keys: 0, bytes: 0 },
+          sessionStorage: { available: ssAvailable, keys: 0, bytes: 0 },
+          persistCheck: persistCheck,
+          opCount: opCount
+        };
+
+        if (lsAvailable) {
+          try {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith(PREFIX)) {
+                result.localStorage.keys++;
+                result.localStorage.bytes += key.length + (localStorage.getItem(key) || '').length;
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (ssAvailable) {
+          try {
+            for (let i = 0; i < sessionStorage.length; i++) {
+              const key = sessionStorage.key(i);
+              if (key && key.startsWith(PREFIX)) {
+                result.sessionStorage.keys++;
+                result.sessionStorage.bytes += key.length + (sessionStorage.getItem(key) || '').length;
+              }
+            }
+          } catch (e) {}
+        }
+
+        return result;
+      }
+
+      // ========================================
+      // MESSAGE HANDLER
+      // ========================================
+      window.onmessage = function(e) {
+        const { kind, v = 1, payload = {} } = e.data || {};
+
+        switch (kind) {
+          case 'registered':
+            console.log('[storage] registered as:', payload.name);
+            break;
+
+          case 'ping':
+            parent.postMessage({ kind: 'pong', v: 1 }, '*');
+            break;
+
+          case 'call':
+            handleCall(e.source, payload);
+            break;
+
+          case 'unload':
+            parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+            break;
+        }
+      };
+
+      function handleCall(source, payload) {
+        const { id, method, args = {} } = payload;
+        opCount++;
+        updateUI();
+
+        let result;
+
+        switch (method) {
+          // localStorage (persistent) operations
+          case 'storage.get':
+            result = doGet(getBackend('storage'), args.key);
+            break;
+          case 'storage.set':
+            result = doSet(getBackend('storage'), args.key, args.value);
+            break;
+          case 'storage.remove':
+            result = doRemove(getBackend('storage'), args.key);
+            break;
+          case 'storage.list':
+            result = doList(getBackend('storage'), args.prefix);
+            break;
+          case 'storage.clear':
+            result = doClear(getBackend('storage'), args.prefix);
+            break;
+
+          // sessionStorage (tab-scoped) operations
+          case 'session.get':
+            result = doGet(getBackend('session'), args.key);
+            break;
+          case 'session.set':
+            result = doSet(getBackend('session'), args.key, args.value);
+            break;
+          case 'session.remove':
+            result = doRemove(getBackend('session'), args.key);
+            break;
+          case 'session.clear':
+            result = doClear(getBackend('session'), args.prefix);
+            break;
+
+          // Meta operations
+          case 'test':
+            result = selfTest();
+            break;
+          case 'stats':
+            result = doStats();
+            break;
+
+          default:
+            result = { error: 'unknown method: ' + method };
+        }
+
+        // Send response
+        source.postMessage({
+          kind: 'response',
+          v: 1,
+          payload: { id: id, method: method, result: result }
+        }, '*');
+      }
+
+      // ========================================
+      // INIT
+      // ========================================
+      selfTest();
+
+      // Register with hub
+      parent.postMessage({
+        kind: 'register',
+        v: 1,
+        payload: {
+          name: CAP_NAME,
+          version: CAP_VERSION,
+          methods: CAP_METHODS
+        }
+      }, '*');
+
+    })();
+  </script>
+</body>
+</html>

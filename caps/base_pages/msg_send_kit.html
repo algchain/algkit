@@ -1,0 +1,360 @@
+<!--@platokit-cap
+send
+kind: msg
+version: 1.0.0
+provides:
+  - msg.send
+  - msg.broadcast
+requires:
+  - capabilities
+  - event_bus
+author: only_sims
+license: MIT
+description: Message broadcaster. Send messages to topics, broadcast to all caps, query for available services.
+tags:
+  - utility
+  - debug
+  - messaging
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { background: #1a1a1a; color: #0f0; font-family: monospace; padding: 8px; margin: 0; font-size: 11px; }
+    .header { color: #0ff; margin-bottom: 8px; font-weight: bold; }
+    .status { font-size: 10px; color: #888; margin-bottom: 8px; }
+    .status.ok { color: #0f0; }
+
+    .section { border: 1px solid #333; padding: 8px; margin-bottom: 8px; background: #0a0a0a; }
+    .section-title { color: #0ff; font-size: 10px; margin-bottom: 5px; }
+
+    .row { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; }
+    .row label { min-width: 50px; color: #888; }
+
+    select, input[type="text"], textarea {
+      background: #000; border: 1px solid #555; color: #0f0;
+      padding: 4px; font-family: monospace; font-size: 11px;
+    }
+    select { color: #0ff; }
+    textarea { width: 100%; height: 60px; resize: vertical; }
+    input[type="text"] { flex: 1; }
+
+    button { background: #030; border: 1px solid #0f0; color: #0f0; padding: 4px 10px; cursor: pointer; font-family: monospace; font-size: 10px; }
+    button:hover { background: #050; }
+    button.warn { border-color: #ff0; color: #ff0; background: #330; }
+    button.warn:hover { background: #550; }
+
+    .presets { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px; }
+    .preset-btn { font-size: 9px; padding: 2px 6px; }
+
+    .log { border: 1px solid #333; padding: 5px; max-height: 100px; overflow-y: auto; font-size: 10px; background: #0a0a0a; }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid #222; }
+    .log-entry.sent { color: #0ff; }
+    .log-entry.recv { color: #0f0; }
+    .log-entry.error { color: #f44; }
+
+    .services { font-size: 10px; }
+    .service-tag { display: inline-block; background: #030; border: 1px solid #0f0; padding: 1px 5px; margin: 2px; cursor: pointer; }
+    .service-tag:hover { background: #050; }
+    .service-tag.has-llm { border-color: #ff0; color: #ff0; }
+  </style>
+</head>
+<body>
+  <div class="header">Send Message</div>
+  <div class="status" id="status">connecting...</div>
+
+  <!-- Discovered Services -->
+  <div class="section">
+    <div class="section-title">Hub Services</div>
+    <div id="services" class="services">(querying...)</div>
+    <button onclick="queryCapabilities()" style="margin-top:5px">Refresh</button>
+  </div>
+
+  <!-- Topics -->
+  <div class="section">
+    <div class="section-title">Event Bus Topics</div>
+    <div id="topics" class="services">(querying...)</div>
+    <button onclick="queryTopics()" style="margin-top:5px">Refresh Topics</button>
+  </div>
+
+  <!-- Send Message -->
+  <div class="section">
+    <div class="section-title">Send Message</div>
+
+    <div class="presets">
+      <button class="preset-btn" onclick="setPreset('llm_question')">LLM Question</button>
+      <button class="preset-btn" onclick="setPreset('ping')">Ping All</button>
+      <button class="preset-btn" onclick="setPreset('custom')">Custom</button>
+    </div>
+
+    <div class="row">
+      <label>Mode:</label>
+      <select id="mode">
+        <option value="topic">Publish to Topic</option>
+        <option value="broadcast">Broadcast All</option>
+      </select>
+    </div>
+
+    <div class="row" id="topic-row">
+      <label>Topic:</label>
+      <input type="text" id="topic" value="llm_questions" placeholder="topic name">
+    </div>
+
+    <div class="row">
+      <label>Data:</label>
+    </div>
+    <textarea id="data" placeholder='{"question": "What is AI?"}'></textarea>
+
+    <div class="row">
+      <button onclick="sendMessage()">Send</button>
+      <button onclick="sendMessage()" class="warn">Broadcast</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Message Log</div>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      const CAP_NAME = 'send_msg';
+      const CAP_VERSION = '1.0.0';
+      const CAP_METHODS = ['send', 'broadcast'];
+
+      let registered = false;
+      let hubServices = [];
+      let busTopics = [];
+
+      // DOM
+      const $status = document.getElementById('status');
+      const $services = document.getElementById('services');
+      const $topics = document.getElementById('topics');
+      const $mode = document.getElementById('mode');
+      const $topic = document.getElementById('topic');
+      const $topicRow = document.getElementById('topic-row');
+      const $data = document.getElementById('data');
+      const $log = document.getElementById('log');
+
+      // ========================================
+      // STATUS & LOG
+      // ========================================
+      function setStatus(text, ok = false) {
+        $status.textContent = text;
+        $status.className = 'status' + (ok ? ' ok' : '');
+      }
+
+      function addLog(text, type = '') {
+        const div = document.createElement('div');
+        div.className = 'log-entry ' + type;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        $log.appendChild(div);
+        $log.scrollTop = $log.scrollHeight;
+      }
+
+      // ========================================
+      // PRESETS
+      // ========================================
+      const PRESETS = {
+        llm_question: {
+          mode: 'topic',
+          topic: 'llm_questions',
+          data: { question: 'What is machine learning?' }
+        },
+        ping: {
+          mode: 'broadcast',
+          topic: '',
+          data: { type: 'ping', from: 'send_msg' }
+        },
+        custom: {
+          mode: 'topic',
+          topic: '',
+          data: {}
+        }
+      };
+
+      window.setPreset = function(name) {
+        const preset = PRESETS[name];
+        if (!preset) return;
+
+        $mode.value = preset.mode;
+        $topic.value = preset.topic;
+        $data.value = JSON.stringify(preset.data, null, 2);
+        updateModeUI();
+      };
+
+      // ========================================
+      // UI
+      // ========================================
+      $mode.onchange = updateModeUI;
+      function updateModeUI() {
+        $topicRow.style.display = $mode.value === 'broadcast' ? 'none' : 'flex';
+      }
+
+      // ========================================
+      // QUERY HUB
+      // ========================================
+      window.queryCapabilities = function() {
+        parent.postMessage({ kind: 'capabilities', v: 1, id: 'caps_query' }, '*');
+        $services.textContent = '(querying...)';
+      };
+
+      window.queryTopics = function() {
+        parent.postMessage({ kind: 'bus_list_topics', v: 1, id: 'topics_query' }, '*');
+        $topics.textContent = '(querying...)';
+      };
+
+      function renderServices() {
+        if (hubServices.length === 0) {
+          $services.textContent = '(none)';
+          return;
+        }
+        $services.innerHTML = hubServices.map(s => {
+          const isLLM = s.name.includes('llm') || (s.ops && s.ops.includes('ask'));
+          const cls = isLLM ? 'service-tag has-llm' : 'service-tag';
+          return `<span class="${cls}" onclick="selectService('${s.name}')">${s.name}</span>`;
+        }).join('');
+      }
+
+      function renderTopics() {
+        if (busTopics.length === 0) {
+          $topics.textContent = '(no active topics)';
+          return;
+        }
+        $topics.innerHTML = busTopics.map(t =>
+          `<span class="service-tag" onclick="selectTopic('${t.topic}')">${t.topic} (${t.subscribers})</span>`
+        ).join('');
+      }
+
+      window.selectService = function(name) {
+        addLog(`Selected service: ${name}`, 'sent');
+      };
+
+      window.selectTopic = function(topic) {
+        $topic.value = topic;
+        $mode.value = 'topic';
+        updateModeUI();
+        addLog(`Selected topic: ${topic}`, 'sent');
+      };
+
+      // ========================================
+      // SEND MESSAGE
+      // ========================================
+      window.sendMessage = function() {
+        let data;
+        try {
+          data = JSON.parse($data.value || '{}');
+        } catch (e) {
+          addLog('Invalid JSON: ' + e.message, 'error');
+          return;
+        }
+
+        const mode = $mode.value;
+        const topic = $topic.value.trim();
+
+        if (mode === 'broadcast') {
+          parent.postMessage({
+            kind: 'bus_broadcast',
+            v: 1,
+            payload: { data }
+          }, '*');
+          addLog(`Broadcast: ${JSON.stringify(data).slice(0, 80)}`, 'sent');
+        } else {
+          if (!topic) {
+            addLog('Topic required for publish', 'error');
+            return;
+          }
+          parent.postMessage({
+            kind: 'bus_publish',
+            v: 1,
+            payload: { topic, data }
+          }, '*');
+          addLog(`Publish to [${topic}]: ${JSON.stringify(data).slice(0, 60)}`, 'sent');
+        }
+      };
+
+      // ========================================
+      // MESSAGE HANDLER
+      // ========================================
+      window.onmessage = function(e) {
+        const { kind, v = 1, payload = {}, id } = e.data || {};
+
+        switch (kind) {
+          case 'registered':
+            registered = true;
+            setStatus('ready', true);
+            addLog('Registered with hub');
+
+            // Subscribe to responses and broadcast
+            parent.postMessage({ kind: 'bus_subscribe', v: 1, payload: { topic: 'llm_responses' } }, '*');
+            parent.postMessage({ kind: 'bus_subscribe', v: 1, payload: { topic: '_broadcast' } }, '*');
+
+            // Query capabilities
+            queryCapabilities();
+            queryTopics();
+            break;
+
+          case 'ping':
+            parent.postMessage({ kind: 'pong', v: 1 }, '*');
+            break;
+
+          case 'capabilities_response':
+            hubServices = payload.services || [];
+            renderServices();
+            addLog(`Found ${hubServices.length} hub services`);
+            break;
+
+          case 'bus_list_topics_response':
+            busTopics = payload.topics || [];
+            renderTopics();
+            addLog(`Found ${busTopics.length} active topics`);
+            break;
+
+          case 'bus_subscribe_response':
+            addLog(`Subscribed to: ${payload.topic}`);
+            break;
+
+          case 'bus_event':
+            handleBusEvent(payload);
+            break;
+        }
+      };
+
+      function handleBusEvent(payload) {
+        const { topic, data, from } = payload;
+        const preview = JSON.stringify(data).slice(0, 100);
+
+        if (topic === 'llm_responses') {
+          addLog(`[LLM Response] Q: "${data.question?.slice(0, 30)}..." A: "${data.answer?.slice(0, 50)}..."`, 'recv');
+        } else if (topic === '_broadcast') {
+          addLog(`[Broadcast from ${from}] ${preview}`, 'recv');
+        } else {
+          addLog(`[${topic}] from tile ${from}: ${preview}`, 'recv');
+        }
+      }
+
+      // ========================================
+      // INIT
+      // ========================================
+      setPreset('llm_question');
+      updateModeUI();
+
+      parent.postMessage({
+        kind: 'register',
+        v: 1,
+        payload: {
+          name: CAP_NAME,
+          version: CAP_VERSION,
+          methods: CAP_METHODS,
+          subscribes: ['llm_responses', '_broadcast']
+        }
+      }, '*');
+
+    })();
+  </script>
+</body>
+</html>

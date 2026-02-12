@@ -1,0 +1,595 @@
+<!--@platokit-cap
+gateway-allenai
+kind: chat
+version: 2.0.0
+provides:
+  - llm.send_prompt
+  - llm.get_status
+  - llm.get_history
+requires:
+  - store (hub)
+  - open_tab (hub)
+  - bus_publish (hub)
+  - bus_subscribe (hub)
+author: only_sims
+license: MIT
+description: Allen AI LLM chat via Puter.js. Generic LLM service endpoint. See chat_gateway-allenai_kit.md for architecture diagram and design spec.
+tags:
+  - llm
+  - ai
+  - chat
+  - gateway
+  - puter
+-->
+<!--
+  #0v4# JC Feb 08, 2026   Standalone mode: clear error on file://, direct popup auth on http://.
+  #0v3# JC Feb 08, 2026   Global config block, fixed auth URL path in comment.
+  #0v2# JC Feb 07, 2026   Skin-matched UI, bus integration (llm_status, help_request), call protocol.
+  #0v1# JC Feb 04, 2026   Initial gateway with Puter auth, streaming, model selection.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Gateway</title>
+  <script src="https://js.puter.com/v2/"></script>
+  <style>
+    :root {
+      --c-bg: #ffffff;
+      --c-bg-alt: #f8f9fa;
+      --c-border: #dadce0;
+      --c-border-focus: #1a73e8;
+      --c-text: #3c4043;
+      --c-text-muted: #5f6368;
+      --c-text-faint: #9aa0a6;
+      --c-accent: #1a73e8;
+      --c-accent-light: #e8f0fe;
+      --c-success: #1e8e3e;
+      --c-success-light: #e6f4ea;
+      --c-warn: #f9ab00;
+      --c-error: #d93025;
+      --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--c-bg); color: var(--c-text); padding: 3% 5%; font-size: clamp(14px, 1.6vw, 18px); max-width: 800px; margin: 0 auto; }
+
+    .cap-title { font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; margin-bottom: clamp(12px, 2vw, 20px); display: flex; align-items: center; gap: 10px; }
+    .status-badge { font-size: clamp(11px, 1.1vw, 13px); font-weight: 500; padding: 3px 10px; border-radius: 10px; }
+    .status-badge.ready { background: var(--c-success-light); color: var(--c-success); }
+    .status-badge.busy { background: #fef7e0; color: #e37400; }
+    .status-badge.auth { background: var(--c-accent-light); color: var(--c-accent); }
+    .status-badge.error { background: #fce8e6; color: var(--c-error); }
+
+    .section { border: 1px solid var(--c-border); border-radius: 8px; padding: clamp(12px, 2vw, 18px); margin-bottom: clamp(10px, 1.5vw, 16px); }
+    .section-label { font-size: clamp(11px, 1.1vw, 13px); font-weight: 600; text-transform: uppercase; color: var(--c-text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
+
+    /* Status dots */
+    .status-row { display: flex; gap: clamp(12px, 2vw, 20px); align-items: center; flex-wrap: wrap; }
+    .status-item { display: flex; align-items: center; gap: 6px; font-size: clamp(13px, 1.3vw, 15px); color: var(--c-text-muted); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot-on { background: var(--c-success); }
+    .dot-off { background: var(--c-border); }
+
+    /* Auth bar */
+    .auth-bar { background: var(--c-accent-light); border: 1px solid var(--c-accent); border-radius: 8px; padding: 12px; margin-bottom: clamp(10px, 1.5vw, 16px); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .auth-bar.hidden { display: none; }
+    .auth-hint { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-muted); flex: 1; }
+
+    /* Buttons */
+    .btn { padding: 8px 16px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-bg); color: var(--c-text); font-size: clamp(13px, 1.3vw, 15px); font-family: var(--font); cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+    .btn:hover { background: var(--c-bg-alt); }
+    .btn-primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+    .btn-primary:hover { background: #1967d2; }
+    .btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Model select */
+    select { padding: 8px 12px; border: 1px solid var(--c-border); border-radius: 6px; font-size: clamp(13px, 1.3vw, 15px); font-family: var(--font); color: var(--c-text); background: var(--c-bg); cursor: pointer; width: 100%; outline: none; }
+    select:focus { border-color: var(--c-border-focus); box-shadow: 0 0 0 2px var(--c-accent-light); }
+
+    /* Chat area */
+    .chat-area { border: 1px solid var(--c-border); border-radius: 8px; height: clamp(180px, 30vw, 350px); overflow-y: auto; padding: 10px 12px; margin-bottom: 10px; background: var(--c-bg-alt); }
+    .msg { padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; font-size: clamp(13px, 1.3vw, 15px); line-height: 1.6; }
+    .msg.user { background: var(--c-accent-light); border-left: 3px solid var(--c-accent); }
+    .msg.assistant { background: var(--c-success-light); border-left: 3px solid var(--c-success); }
+    .msg.error { background: #fce8e6; border-left: 3px solid var(--c-error); color: var(--c-error); }
+    .msg.system { background: #fff8e1; border-left: 3px solid var(--c-warn); color: #e37400; font-size: clamp(12px, 1.2vw, 14px); }
+    .msg-label { font-size: clamp(10px, 1vw, 12px); color: var(--c-text-faint); margin-bottom: 3px; font-weight: 500; text-transform: uppercase; }
+
+    /* Input */
+    .chat-row { display: flex; gap: 8px; }
+    #input { flex: 1; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 6px; font-size: clamp(14px, 1.4vw, 16px); font-family: var(--font); color: var(--c-text); outline: none; }
+    #input:focus { border-color: var(--c-border-focus); box-shadow: 0 0 0 2px var(--c-accent-light); }
+    #input:disabled { opacity: 0.4; }
+  </style>
+</head>
+<body>
+
+  <!-- TITLE -->
+  <div class="cap-title">
+    LLM Gateway
+    <span class="status-badge auth" id="status">initializing</span>
+  </div>
+
+  <!-- STATUS -->
+  <div class="section">
+    <div class="section-label">Status</div>
+    <div class="status-row">
+      <span class="status-item"><span class="dot dot-off" id="dotHub"></span> Hub</span>
+      <span class="status-item"><span class="dot dot-off" id="dotToken"></span> Token</span>
+      <span class="status-item"><span class="dot dot-off" id="dotAuth"></span> Authenticated</span>
+    </div>
+  </div>
+
+  <!-- AUTH -->
+  <div class="auth-bar" id="auth-bar">
+    <span class="auth-hint" id="auth-hint">Not authenticated. Connect to Allen AI via Puter.</span>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-auth-popup">Authenticate (Popup)</button>
+      <button class="btn" id="btn-auth-tab">Authenticate (Tab)</button>
+    </div>
+  </div>
+
+  <!-- MODEL -->
+  <div class="section">
+    <div class="section-label">Model</div>
+    <select id="model">
+      <option value="allenai/olmo-3.1-32b-instruct" selected>Olmo 3.1 32B Instruct</option>
+      <option value="allenai/olmo-3.1-32b-think">Olmo 3.1 32B Think</option>
+      <option value="allenai/olmo-3-7b-instruct">Olmo 3 7B Instruct (faster)</option>
+    </select>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-area" id="chat"></div>
+  <div class="chat-row">
+    <input type="text" id="input" placeholder="Waiting for authentication..." disabled>
+    <button class="btn btn-primary" id="btn-send" disabled>Send</button>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // ================================================================
+      // GLOBAL CONFIG - edit these if server/port/paths change
+      // ================================================================
+      var HUB_SERVER = 'http://127.0.0.1:8081';              // local dev server (start_server.bat)
+      var AUTH_TAB_URL = HUB_SERVER + '/caps/chats/auth_puter_kit.html';  // must be HTTP (not file://)
+      // ================================================================
+
+      var CAP_NAME = 'chats_gateway_allenai';
+      var CAP_VERSION = '2.0.0';
+      var CAP_METHODS = ['send_prompt', 'get_status', 'get_history'];
+      var TOKEN_KEY = 'puter_auth_token';
+
+      var registered = false;
+      var authenticated = false;
+      var busy = false;
+      var isHubbed = false;
+      var chatHistory = [];
+      var storedToken = null;  // non-null when auth came from stored token (direct API mode)
+
+      // DOM
+      var $status = document.getElementById('status');
+      var $authBar = document.getElementById('auth-bar');
+      var $authHint = document.getElementById('auth-hint');
+      var $btnAuthPopup = document.getElementById('btn-auth-popup');
+      var $btnAuthTab = document.getElementById('btn-auth-tab');
+      var $model = document.getElementById('model');
+      var $chat = document.getElementById('chat');
+      var $input = document.getElementById('input');
+      var $btnSend = document.getElementById('btn-send');
+      var dotAuth = document.getElementById('dotAuth');
+      var dotHub = document.getElementById('dotHub');
+      var dotToken = document.getElementById('dotToken');
+      var hasToken = false;  // tracks whether a stored token was found
+
+      // ========================================
+      // STATUS
+      // ========================================
+      function setStatus(text, type) {
+        $status.textContent = text;
+        $status.className = 'status-badge ' + (type || '');
+      }
+
+      function updateDots() {
+        dotAuth.className = 'dot ' + (authenticated ? 'dot-on' : 'dot-off');
+        dotHub.className = 'dot ' + (isHubbed && registered ? 'dot-on' : 'dot-off');
+        dotToken.className = 'dot ' + (hasToken ? 'dot-on' : 'dot-off');
+      }
+
+      function enableChat(enabled) {
+        $input.disabled = !enabled;
+        $btnSend.disabled = !enabled;
+        if (enabled) {
+          $authBar.classList.add('hidden');
+          $input.placeholder = 'Ask a question...';
+        }
+      }
+
+      // ========================================
+      // CHAT UI
+      // ========================================
+      function addMessage(text, type, label) {
+        var div = document.createElement('div');
+        div.className = 'msg ' + type;
+        if (label) {
+          var lbl = document.createElement('div');
+          lbl.className = 'msg-label';
+          lbl.textContent = label;
+          div.appendChild(lbl);
+        }
+        var content = document.createElement('div');
+        content.textContent = text;
+        div.appendChild(content);
+        $chat.appendChild(div);
+        $chat.scrollTop = $chat.scrollHeight;
+        return content;
+      }
+
+      function updateMessage(contentEl, text) {
+        contentEl.textContent = text;
+        $chat.scrollTop = $chat.scrollHeight;
+      }
+
+      // ========================================
+      // HUB COMMUNICATION
+      // ========================================
+      function genId() { return 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+
+      function subscribe(topic) {
+        if (!isHubbed) return;
+        parent.postMessage({ kind: 'bus_subscribe', v: 1, payload: { topic: topic } }, '*');
+      }
+
+      function busPublish(topic, data) {
+        if (!isHubbed) return;
+        parent.postMessage({ kind: 'bus_publish', v: 1, payload: { topic: topic, data: data } }, '*');
+      }
+
+      var pendingTokenGetId = null;
+      function requestStoredToken() {
+        pendingTokenGetId = genId();
+        parent.postMessage({ kind: 'store', v: 1, id: pendingTokenGetId, payload: { op: 'get', key: TOKEN_KEY } }, '*');
+      }
+
+      function storeToken(token) {
+        parent.postMessage({ kind: 'store', v: 1, id: genId(), payload: { op: 'set', key: TOKEN_KEY, value: { token: token, storedAt: new Date().toISOString() } } }, '*');
+      }
+
+      function requestAuthTab(mode) {
+        $authHint.textContent = 'Opening auth (' + mode + ')...';
+        $btnAuthPopup.disabled = $btnAuthTab.disabled = true;
+        var features = mode === 'popup' ? 'width=500,height=600' : '';
+        parent.postMessage({ kind: 'open_tab', v: 1, id: genId(), payload: { url: AUTH_TAB_URL, features: features } }, '*');
+      }
+
+      // ========================================
+      // AUTH
+      // ========================================
+      function setToken(token, fromStorage) {
+        if (!token) return false;
+        try {
+          puter.setAuthToken(token);
+        } catch (e) {
+          addMessage('Failed to set token: ' + e.message, 'error');
+          return false;
+        }
+
+        if (fromStorage) {
+          addMessage('Found stored token.', 'system');
+        }
+
+        // Trust setAuthToken - SDK IndexedDB/localStorage errors are non-fatal.
+        // CORS blocks direct api.puter.com validation from sandbox.
+        // If token is expired, the first chat call will reveal it.
+        authenticated = true;
+        storedToken = token;
+        setStatus('ready', 'ready');
+        updateDots();
+        enableChat(true);
+        addMessage('Authenticated. Ready to chat.', 'system');
+        busPublish('llm_status', { ready: true, model: $model.value, cap: CAP_NAME });
+        return true;
+      }
+
+      // ========================================
+      // LLM
+      // ========================================
+      async function askLLM(question, options) {
+        var model = (options && options.model) || $model.value;
+        if (!authenticated) throw new Error('Not authenticated');
+
+        busy = true;
+        setStatus('thinking...', 'busy');
+        $btnSend.disabled = true;
+
+        try {
+          var response = await puter.ai.chat(question, { model: model, stream: true, temperature: 0.7 });
+          var fullResponse = '';
+          var contentEl = addMessage('', 'assistant', 'AI (' + model.split('/').pop() + ')');
+
+          for await (var part of response) {
+            var chunk = (part && part.text) || (part && part.message && part.message.content) || (part && part.reasoning) || '';
+            fullResponse += chunk;
+            updateMessage(contentEl, fullResponse);
+          }
+
+          chatHistory.push({ role: 'user', text: question, ts: new Date().toISOString() });
+          chatHistory.push({ role: 'assistant', text: fullResponse, model: model, ts: new Date().toISOString() });
+
+          return fullResponse;
+        } catch (err) {
+          var msg = err.message || String(err);
+          // Detect token expiry (401, auth errors)
+          if (msg.indexOf('401') !== -1 || msg.indexOf('auth') !== -1 || msg.indexOf('Unauthorized') !== -1 || msg.indexOf('token') !== -1) {
+            authenticated = false;
+            storedToken = null;
+            setStatus('auth needed', 'auth');
+            updateDots();
+            enableChat(false);
+            addMessage('Token expired. Click Authenticate to reconnect.', 'error');
+            // Clear dead token from hub storage
+            if (isHubbed) {
+              parent.postMessage({ kind: 'store', v: 1, id: genId(), payload: { op: 'remove', key: TOKEN_KEY } }, '*');
+            }
+            busPublish('llm_status', { ready: false, cap: CAP_NAME });
+          }
+          throw err;
+        } finally {
+          busy = false;
+          if (authenticated) setStatus('ready', 'ready');
+          $btnSend.disabled = false;
+        }
+      }
+
+      // ========================================
+      // CALL PROTOCOL
+      // ========================================
+      function handleCall(payload, id) {
+        var method = payload ? payload.method : null;
+        var args = payload ? payload.args : {};
+
+        switch (method) {
+          case 'send_prompt':
+            if (!authenticated) {
+              respond(id, { ok: false, error: 'Not authenticated' });
+              return;
+            }
+            var prompt = args && (args.text || args.prompt || args.question);
+            if (!prompt) { respond(id, { ok: false, error: 'missing text/prompt' }); return; }
+            addMessage(prompt, 'user', 'External');
+            askLLM(prompt, args).then(function(answer) {
+              respond(id, { ok: true, answer: answer, model: $model.value });
+            }).catch(function(err) {
+              respond(id, { ok: false, error: err.message });
+            });
+            return; // async - response sent later
+
+          case 'get_status':
+            respond(id, { authenticated: authenticated, busy: busy, model: $model.value, history_count: chatHistory.length });
+            return;
+
+          case 'get_history':
+            respond(id, { history: chatHistory });
+            return;
+
+          default:
+            respond(id, { error: 'unknown method: ' + method });
+        }
+      }
+
+      function respond(id, result) {
+        if (isHubbed && id) {
+          parent.postMessage({ kind: 'response', v: 1, payload: { id: id, result: result } }, '*');
+        }
+      }
+
+      // ========================================
+      // BUS EVENT HANDLER
+      // ========================================
+      function handleBusEvent(payload) {
+        if (!payload) return;
+
+        if (payload.topic === 'help_request' && authenticated && !busy) {
+          var d = payload.data || {};
+          if (d.target && d.target !== 'llm') return; // not addressed to us
+
+          var prompt = (d.title || '') + (d.desc ? '\n\n' + d.desc : '');
+          if (!prompt.trim()) return;
+
+          addMessage('[Help Request] ' + (d.title || '(no title)'), 'system');
+          addMessage(prompt, 'user', 'Help: ' + (d.key || '?'));
+
+          askLLM(prompt).then(function(answer) {
+            busPublish('help_response', { request_key: d.key || null, source: 'llm', text: answer });
+          }).catch(function(err) {
+            busPublish('help_response', { request_key: d.key || null, source: 'llm', text: 'Error: ' + err.message });
+          });
+        }
+      }
+
+      // ========================================
+      // UI HANDLERS
+      // ========================================
+      async function handleSend() {
+        var question = $input.value.trim();
+        if (!question || busy || !authenticated) return;
+        $input.value = '';
+        addMessage(question, 'user', 'You');
+        try { await askLLM(question); } catch (e) { addMessage('Error: ' + e.message, 'error'); }
+      }
+
+      $btnSend.onclick = handleSend;
+      $input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); handleSend(); } };
+      $btnAuthPopup.onclick = function() { requestAuthTab('popup'); };
+      $btnAuthTab.onclick = function() { requestAuthTab('tab'); };
+
+      // ========================================
+      // MESSAGE HANDLER
+      // ========================================
+      window.onmessage = async function(e) {
+        var d = e.data || {};
+        var kind = d.kind;
+        var payload = d.payload || {};
+
+        switch (kind) {
+          case 'registered':
+            registered = true;
+            console.log('[gateway] registered with hub, requesting stored token...');
+            updateDots();
+            // Clear retained status until this session confirms auth.
+            busPublish('llm_status', { ready: false, model: $model.value, cap: CAP_NAME });
+            requestStoredToken();
+            subscribe('help_request');
+            break;
+
+          case 'store_response':
+            console.log('[gateway] store_response id=' + d.id + ' pendingId=' + pendingTokenGetId + ' hasValue=' + !!(payload.value));
+            // Only handle the token GET response, ignore SET confirmations
+            if (d.id && d.id === pendingTokenGetId) {
+              pendingTokenGetId = null;
+              if (payload.value && payload.value.token) {
+                console.log('[gateway] stored token found (' + payload.value.token.slice(0, 12) + '...)');
+                hasToken = true;
+                updateDots();
+                setToken(payload.value.token, true);
+              } else {
+                console.log('[gateway] no stored token');
+                addMessage('No stored token. Click Authenticate to connect.', 'system');
+                setStatus('auth needed', 'auth');
+                busPublish('llm_status', { ready: false, model: $model.value, cap: CAP_NAME });
+              }
+            }
+            break;
+
+          case 'open_tab_response':
+            if (payload.success) {
+              addMessage('Auth opened. Complete authentication there.', 'system');
+            } else {
+              addMessage('Failed to open auth: ' + (payload.error || 'unknown'), 'error');
+              $btnAuthPopup.disabled = $btnAuthTab.disabled = false;
+            }
+            break;
+
+          case 'tab_relay_response':
+            $btnAuthPopup.disabled = $btnAuthTab.disabled = false;
+            if (payload.error) {
+              addMessage('Auth failed: ' + payload.error, 'error');
+            } else if (payload.token) {
+              addMessage('Token received!', 'system');
+              setToken(payload.token, false);  // fresh token, validates async
+              storeToken(payload.token);       // save immediately (fresh = valid)
+            }
+            break;
+
+          case 'ping':
+            parent.postMessage({ kind: 'pong', v: 1 }, '*');
+            break;
+
+          case 'call':
+            handleCall(d.payload, d.id);
+            break;
+
+          case 'bus_event':
+            handleBusEvent(d.payload);
+            break;
+
+          // Legacy: direct ask (backwards compat)
+          case 'llm_ask':
+          case 'ask':
+            if (!authenticated) {
+              parent.postMessage({ kind: 'response', v: 1, id: d.id, payload: { error: 'Not authenticated' } }, '*');
+              break;
+            }
+            var q = payload.question || payload.text || payload.prompt;
+            if (q) {
+              addMessage(q, 'user', 'External');
+              try {
+                var answer = await askLLM(q, payload);
+                parent.postMessage({ kind: 'response', v: 1, id: d.id, payload: { answer: answer, model: $model.value } }, '*');
+              } catch (err) {
+                parent.postMessage({ kind: 'response', v: 1, id: d.id, payload: { error: err.message } }, '*');
+              }
+            }
+            break;
+
+          case 'unload':
+            busPublish('llm_status', { ready: false, cap: CAP_NAME });
+            parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+            break;
+        }
+      };
+
+      // ========================================
+      // INIT
+      // ========================================
+      console.log('[gateway] init start, protocol=' + location.protocol + ' origin=' + location.origin);
+      try {
+        if (window.parent && window.parent !== window) { isHubbed = true; }
+      } catch (_) {}
+
+      console.log('[gateway] isHubbed=' + isHubbed);
+      setStatus('registering...', 'auth');
+      updateDots();
+
+      if (isHubbed) {
+        console.log('[gateway] sending register to hub...');
+        parent.postMessage({ kind: 'register', v: 1, payload: { name: CAP_NAME, version: CAP_VERSION, methods: CAP_METHODS } }, '*');
+      } else {
+        // ========================================
+        // STANDALONE MODE - explain what's needed
+        // ========================================
+        var isFile = location.protocol === 'file:';
+        var isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+
+        if (isFile) {
+          // file:// standalone - auth is impossible without hub
+          setStatus('needs hub', 'error');
+          $authHint.innerHTML = '<strong>Cannot authenticate from file://</strong><br>' +
+            'Puter auth requires HTTP origin. Two options:' +
+            '<br>1. Open in hub: <a href="platokit.html?tiles=caps/chats/chat_gateway-allenai_kit.html" style="color:var(--c-accent)">platokit.html?tiles=...</a> + run <code>start_server.bat</code>' +
+            '<br>2. Open via server: <a href="' + HUB_SERVER + '/caps/chats/chat_gateway-allenai_kit.html" style="color:var(--c-accent)">' + HUB_SERVER + '/caps/chats/...</a>';
+          $btnAuthPopup.disabled = true;
+          $btnAuthTab.disabled = true;
+          addMessage('Opened as file:// standalone. Auth requires hub + HTTP server.', 'error');
+          addMessage('Run start_server.bat, then open in platokit.html or via http://127.0.0.1:8081/', 'system');
+        } else if (isHttp) {
+          // http:// standalone - can try direct Puter popup auth
+          setStatus('standalone', 'auth');
+          $authHint.textContent = 'Standalone mode (no hub). Click to authenticate directly.';
+          addMessage('Standalone http:// mode. Hub features (storage, bus) unavailable.', 'system');
+          // Enable popup auth (direct Puter, no tab relay needed on http://)
+          $btnAuthPopup.disabled = false;
+          $btnAuthPopup.onclick = function() {
+            $authHint.textContent = 'Authenticating via Puter...';
+            $btnAuthPopup.disabled = true;
+            try {
+              puter.ui.authenticateWithPuter().then(function() {
+                authenticated = true;
+                setStatus('ready', 'ready');
+                updateDots();
+                enableChat(true);
+                addMessage('Authenticated via direct popup. Ready to chat.', 'system');
+              }).catch(function(err) {
+                addMessage('Auth failed: ' + err.message, 'error');
+                $authHint.textContent = 'Auth failed. Try again.';
+                $btnAuthPopup.disabled = false;
+              });
+            } catch (err) {
+              addMessage('Puter.js not loaded or error: ' + err.message, 'error');
+              $btnAuthPopup.disabled = false;
+            }
+          };
+          // Tab relay not available without hub
+          $btnAuthTab.disabled = true;
+          $btnAuthTab.title = 'Tab relay requires hub';
+        }
+      }
+
+    })();
+  </script>
+</body>
+</html>

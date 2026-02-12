@@ -1,0 +1,509 @@
+<!--@platokit-cap
+hotline
+kind: help
+version: 1.0.0
+provides:
+  - help_hotline.submit_request
+  - help_hotline.get_requests
+  - help_hotline.get_status
+requires:
+  - store (hub)
+  - bus_publish (hub)
+  - bus_subscribe (hub)
+author: JC
+description: Help request form with routing to mesh chat, LLM, or hub storage
+tags:
+  - help
+  - form
+  - routing
+-->
+<!--
+  #0v1# JC Feb 07, 2026   Initial help hotline cap - form, routing, response display.
+
+  ARCHITECTURE:
+  - Form-based help request submission
+  - Routes to whichever support services are online (mesh chat, LLM, storage)
+  - Listens on bus for service availability (chat_status, llm_status)
+  - Receives responses via bus (help_response topic)
+  - All messages are dicts/RPC - not just text strings
+  - See help_hotline_kit.md for design spec
+
+  TODO:
+  - LLM cap needs exposed methods (send_prompt, get_response) to enable LLM routing
+  - LLM cap needs skin-matched UI (same style as this cap and chat2_vid)
+  - See integrated_hubs_design.md for the cross-cap wiring plan
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help Hotline</title>
+    <style>
+        :root {
+            --c-bg: #ffffff;
+            --c-bg-alt: #f8f9fa;
+            --c-border: #dadce0;
+            --c-border-focus: #1a73e8;
+            --c-text: #3c4043;
+            --c-text-muted: #5f6368;
+            --c-text-faint: #9aa0a6;
+            --c-accent: #1a73e8;
+            --c-accent-light: #e8f0fe;
+            --c-success: #1e8e3e;
+            --c-success-light: #e6f4ea;
+            --c-warn: #f9ab00;
+            --c-error: #d93025;
+            --font: 'Google Sans', 'Roboto', Helvetica, Arial, sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font); background: var(--c-bg); color: var(--c-text); padding: 3% 5%; font-size: clamp(14px, 1.6vw, 18px); max-width: 800px; margin: 0 auto; }
+
+        .cap-title { font-size: clamp(20px, 2.5vw, 28px); font-weight: 600; margin-bottom: clamp(12px, 2vw, 20px); }
+        .section { border: 1px solid var(--c-border); border-radius: 8px; padding: clamp(12px, 2vw, 18px); margin-bottom: clamp(10px, 1.5vw, 16px); }
+        .section-label { font-size: clamp(11px, 1.1vw, 13px); font-weight: 600; text-transform: uppercase; color: var(--c-text-muted); letter-spacing: 0.5px; margin-bottom: 8px; }
+
+        /* Status */
+        .status-row { display: flex; gap: clamp(12px, 2vw, 20px); align-items: center; flex-wrap: wrap; }
+        .status-item { display: flex; align-items: center; gap: 6px; font-size: clamp(13px, 1.3vw, 15px); color: var(--c-text-muted); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .dot-on { background: var(--c-success); }
+        .dot-off { background: var(--c-border); }
+
+        /* Form */
+        label { display: block; font-size: clamp(12px, 1.2vw, 14px); font-weight: 500; color: var(--c-text-muted); margin-bottom: 4px; }
+        .field { margin-bottom: clamp(10px, 1.5vw, 14px); }
+        input[type="text"], textarea, select {
+            width: 100%; padding: 8px 12px; border: 1px solid var(--c-border); border-radius: 6px;
+            font-size: clamp(14px, 1.4vw, 16px); font-family: var(--font); color: var(--c-text); outline: none;
+            background: var(--c-bg);
+        }
+        input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--c-border-focus); box-shadow: 0 0 0 2px var(--c-accent-light); }
+        textarea { resize: vertical; min-height: 80px; }
+        select { cursor: pointer; }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-bg); color: var(--c-text); font-size: clamp(13px, 1.3vw, 15px); font-family: var(--font); cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+        .btn:hover { background: var(--c-bg-alt); }
+        .btn-primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+        .btn-primary:hover { background: #1967d2; }
+        .btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .btn-hint { font-size: clamp(11px, 1.1vw, 13px); color: var(--c-text-faint); }
+        .btn-hint .key { font-family: 'Roboto Mono', monospace; color: var(--c-accent); font-weight: 500; cursor: pointer; user-select: all; }
+        input[type="checkbox"] { accent-color: var(--c-accent); width: 16px; height: 16px; cursor: pointer; }
+
+        /* Responses */
+        #responses { border: 1px solid var(--c-border); border-radius: 8px; min-height: 60px; max-height: clamp(120px, 20vw, 220px); overflow-y: auto; padding: 10px 12px; background: var(--c-bg-alt); font-size: clamp(13px, 1.3vw, 15px); line-height: 1.6; }
+        #responses:empty::before { content: 'No responses yet.'; color: var(--c-text-faint); font-style: italic; }
+        .resp-item { padding: 6px 0; border-bottom: 1px solid var(--c-border); }
+        .resp-item:last-child { border-bottom: none; }
+        .resp-source { font-weight: 600; font-size: clamp(11px, 1.1vw, 13px); text-transform: uppercase; color: var(--c-accent); }
+        .resp-time { font-size: clamp(10px, 1vw, 12px); color: var(--c-text-faint); margin-left: 8px; }
+        .resp-text { margin-top: 2px; }
+
+        /* Submitted list */
+        .req-item { font-size: clamp(12px, 1.2vw, 14px); color: var(--c-text-muted); padding: 4px 0; border-bottom: 1px solid var(--c-border); }
+        .req-item:last-child { border-bottom: none; }
+        .req-title { font-weight: 500; color: var(--c-text); }
+        .req-meta { font-size: clamp(10px, 1vw, 12px); color: var(--c-text-faint); }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--c-text); color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity 0.2s; z-index: 100; pointer-events: none; }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="toast" id="toast"></div>
+
+    <!-- TITLE -->
+    <div class="cap-title">Help Hotline</div>
+
+    <!-- STATUS -->
+    <div class="section">
+        <div class="section-label">Status</div>
+        <div class="status-row">
+            <span class="status-item"><span class="dot dot-off" id="dotInternet"></span> Internet</span>
+            <span class="status-item"><span class="dot dot-off" id="dotChat"></span> Mesh Chat</span>
+            <span class="status-item"><span class="dot dot-off" id="dotLLM"></span> LLM</span>
+        </div>
+    </div>
+
+    <!-- REQUEST FORM -->
+    <div class="section">
+        <div class="section-label">Submit a Help Request</div>
+        <div class="field">
+            <label for="reqTitle">Title</label>
+            <input type="text" id="reqTitle" placeholder="Brief summary of the issue">
+        </div>
+        <div class="field">
+            <label for="reqDesc">Description</label>
+            <textarea id="reqDesc" placeholder="Describe what you need help with..."></textarea>
+        </div>
+        <div class="field">
+            <label for="reqCategory">Category</label>
+            <select id="reqCategory">
+                <option value="general">General</option>
+                <option value="bug">Bug Report</option>
+                <option value="feature">Feature Request</option>
+                <option value="question">Question</option>
+                <option value="urgent">Urgent</option>
+            </select>
+        </div>
+        <div class="field">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="chkSave" checked> Save to hub storage
+            </label>
+        </div>
+        <div class="section-label" style="margin-top:4px;display:flex;align-items:center;gap:8px;">
+            Send To
+            <button class="btn" id="btnScan" onclick="scanForHelpers()" style="font-size:11px;padding:2px 8px;">Scan for helpers</button>
+            <span id="scanHint" style="font-size:11px;color:var(--c-text-muted,#5f6368);"></span>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btnAskMesh" onclick="askMesh()" disabled>Ask Mesh</button>
+            <button class="btn btn-primary" id="btnAskLLM" onclick="askLLM()" disabled>Ask LLM</button>
+            <button class="btn" id="btnSaveOnly" onclick="saveOnly()">Save Only</button>
+        </div>
+        <div class="btn-hint" id="keyHint" style="margin-top:6px;"></div>
+    </div>
+
+    <!-- RESPONSES -->
+    <div class="section">
+        <div class="section-label">Responses</div>
+        <div id="responses"></div>
+    </div>
+
+    <!-- SUBMITTED REQUESTS (recent) -->
+    <div class="section" id="historySection">
+        <div class="section-label">Submitted Requests</div>
+        <div id="history"></div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ========================================
+        // HUB INTEGRATION
+        // ========================================
+        var CAP_NAME = 'help_hotline';
+        var CAP_VERSION = '1.0.0';
+        var CAP_METHODS = ['submit_request', 'get_requests', 'get_status'];
+        var isHubbed = false;
+
+        try {
+            if (window.parent && window.parent !== window) {
+                parent.postMessage({
+                    kind: 'register', v: 1,
+                    payload: { name: CAP_NAME, version: CAP_VERSION, methods: CAP_METHODS }
+                }, '*');
+                isHubbed = true;
+            }
+        } catch (_) { /* standalone */ }
+
+        // ========================================
+        // STATE
+        // ========================================
+        var services = { internet: false, chat: false, llm: false };
+        var requests = [];   // { key, title, desc, category, ts, routed[] }
+        var responses = [];  // { requestKey, source, text, ts }
+        var keyCounter = 0;
+        var pendingMeshFallback = {}; // key -> timeout handle
+        var MESH_FALLBACK_MS = 6000;
+
+        // DOM
+        var dotInternet = document.getElementById('dotInternet');
+        var dotChat = document.getElementById('dotChat');
+        var dotLLM = document.getElementById('dotLLM');
+        var btnAskMesh = document.getElementById('btnAskMesh');
+        var btnAskLLM = document.getElementById('btnAskLLM');
+
+        // ========================================
+        // HUB MESSAGE HANDLER
+        // ========================================
+        window.onmessage = function(e) {
+            var d = e.data;
+            if (!d || !d.kind) return;
+
+            switch (d.kind) {
+                case 'registered':
+                    console.log('[help_hotline] Registered with hub');
+                    subscribe('chat_status');
+                    subscribe('chat_room');
+                    subscribe('llm_status');
+                    subscribe('help_response');
+                    break;
+
+                case 'ping':
+                    parent.postMessage({ kind: 'pong', v: 1 }, '*');
+                    break;
+
+                case 'call':
+                    handleCall(d.payload, d.id);
+                    break;
+
+                case 'bus_event':
+                    handleBusEvent(d.payload);
+                    break;
+
+                case 'store_response':
+                    break;
+
+                case 'unload':
+                    parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+                    break;
+            }
+        };
+
+        function subscribe(topic) {
+            if (!isHubbed) return;
+            parent.postMessage({ kind: 'bus_subscribe', v: 1, payload: { topic: topic } }, '*');
+        }
+
+        // Active scan: re-subscribe to status topics (triggers retained event replay)
+        window.scanForHelpers = function() {
+            if (!isHubbed) return;
+            var hint = document.getElementById('scanHint');
+            hint.textContent = 'scanning...';
+            subscribe('chat_status');
+            subscribe('chat_room');
+            subscribe('llm_status');
+            setTimeout(function() {
+                var found = [];
+                if (services.llm) found.push('LLM');
+                if (services.chat) found.push('Mesh');
+                hint.textContent = found.length ? 'Found: ' + found.join(', ') : 'No helpers found';
+                setTimeout(function() { hint.textContent = ''; }, 4000);
+            }, 500);
+        };
+
+        function handleCall(payload, id) {
+            var result = null;
+            var method = payload ? payload.method : null;
+
+            switch (method) {
+                case 'submit_request':
+                    if (payload.args) {
+                        result = doSubmit(payload.args.title || '', payload.args.desc || '', payload.args.category || 'general', payload.args.targets || []);
+                    } else {
+                        result = { ok: false, error: 'missing args' };
+                    }
+                    break;
+                case 'get_requests':
+                    result = { requests: requests };
+                    break;
+                case 'get_status':
+                    result = { services: services, request_count: requests.length, response_count: responses.length };
+                    break;
+                default:
+                    result = { error: 'unknown method: ' + method };
+            }
+
+            if (isHubbed && id) {
+                parent.postMessage({ kind: 'response', v: 1, payload: { id: id, result: result } }, '*');
+            }
+        }
+
+        function handleBusEvent(payload) {
+            if (!payload) return;
+            switch (payload.topic) {
+                case 'chat_status':
+                    if (payload.data && payload.data.connected !== undefined) { services.chat = payload.data.connected; updateUI(); }
+                    break;
+                case 'chat_room':
+                    services.chat = true; updateUI();
+                    break;
+                case 'llm_status':
+                    if (payload.data && payload.data.ready !== undefined) { services.llm = payload.data.ready; updateUI(); }
+                    break;
+                case 'help_response':
+                    if (payload.data) {
+                        clearMeshFallback(payload.data.request_key || null);
+                        addResponse(payload.data.request_key || null, payload.data.source || 'unknown', payload.data.text || '');
+                    }
+                    break;
+            }
+        }
+
+        function scheduleMeshFallback(requestKey) {
+            if (!requestKey) return;
+            clearMeshFallback(requestKey);
+            pendingMeshFallback[requestKey] = setTimeout(function() {
+                addResponse(requestKey, 'mesh_chat', 'Thanks for asking, but Mesh Chat is offline right now.');
+                delete pendingMeshFallback[requestKey];
+            }, MESH_FALLBACK_MS);
+        }
+
+        function clearMeshFallback(requestKey) {
+            if (!requestKey) return;
+            var h = pendingMeshFallback[requestKey];
+            if (h) {
+                clearTimeout(h);
+                delete pendingMeshFallback[requestKey];
+            }
+        }
+
+        // ========================================
+        // KEY GENERATION
+        // ========================================
+        function generateKey() {
+            keyCounter++;
+            var ts = Date.now().toString(36);
+            var rand = Math.random().toString(36).slice(2, 6);
+            return 'hlp_' + ts + '_' + rand;
+        }
+
+        // ========================================
+        // CORE LOGIC
+        // ========================================
+        function getFormData() {
+            var title = document.getElementById('reqTitle').value.trim();
+            var desc = document.getElementById('reqDesc').value.trim();
+            var cat = document.getElementById('reqCategory').value;
+            return { title: title, desc: desc, category: cat };
+        }
+
+        function clearForm() {
+            document.getElementById('reqTitle').value = '';
+            document.getElementById('reqDesc').value = '';
+            document.getElementById('reqCategory').value = 'general';
+            document.getElementById('keyHint').innerHTML = '';
+        }
+
+        function doSubmit(title, desc, category, targets) {
+            if (!title) return { ok: false, error: 'Title required' };
+
+            var key = generateKey();
+            var req = { key: key, title: title, desc: desc, category: category, ts: new Date().toISOString(), routed: [] };
+            var data = { key: key, title: title, desc: desc, category: category, ts: req.ts };
+
+            // Route to specified targets
+            targets.forEach(function(t) {
+                if (t === 'mesh' && isHubbed) {
+                    parent.postMessage({ kind: 'bus_publish', v: 1, payload: { topic: 'help_request', data: Object.assign({ target: 'mesh' }, data) } }, '*');
+                    req.routed.push('mesh');
+                    scheduleMeshFallback(key);
+                }
+                if (t === 'llm' && isHubbed) {
+                    parent.postMessage({ kind: 'bus_publish', v: 1, payload: { topic: 'help_request', data: Object.assign({ target: 'llm' }, data) } }, '*');
+                    req.routed.push('llm');
+                }
+            });
+
+            // Save to hub storage if checked
+            if (document.getElementById('chkSave').checked && isHubbed) {
+                parent.postMessage({ kind: 'store', v: 1, id: 'save_' + key, payload: { op: 'set', key: key, value: req } }, '*');
+                req.routed.push('storage');
+            }
+
+            requests.push(req);
+            renderHistory();
+            showKeyHint(key, req.routed);
+            return { ok: true, key: key, routed: req.routed };
+        }
+
+        function addResponse(requestKey, source, text) {
+            responses.push({ requestKey: requestKey, source: source, text: text, ts: new Date().toISOString() });
+            renderResponses();
+        }
+
+        // ========================================
+        // UI
+        // ========================================
+        function updateUI() {
+            dotInternet.className = 'dot ' + (navigator.onLine ? 'dot-on' : 'dot-off');
+            dotChat.className = 'dot ' + (services.chat ? 'dot-on' : 'dot-off');
+            dotLLM.className = 'dot ' + (services.llm ? 'dot-on' : 'dot-off');
+
+            btnAskMesh.disabled = !services.chat;
+            btnAskLLM.disabled = !services.llm;
+        }
+
+        function showKeyHint(key, routed) {
+            var hint = document.getElementById('keyHint');
+            var routeStr = routed.length ? ' &rarr; ' + routed.join(', ') : '';
+            hint.innerHTML = 'Saved as <span class="key" title="Click to copy" onclick="copyKey(\'' + key + '\')">' + key + '</span>' + routeStr;
+        }
+
+        function renderHistory() {
+            var el = document.getElementById('history');
+            if (!requests.length) { el.innerHTML = '<div style="color:var(--c-text-faint);font-style:italic;font-size:clamp(12px,1.2vw,14px);">No requests yet.</div>'; return; }
+            el.innerHTML = '';
+            for (var i = requests.length - 1; i >= 0; i--) {
+                var r = requests[i];
+                var div = document.createElement('div');
+                div.className = 'req-item';
+                div.innerHTML = '<span class="req-title">' + esc(r.title) + '</span> <span class="req-meta"><span class="key" onclick="copyKey(\'' + r.key + '\')">' + r.key + '</span> [' + r.category + '] ' + shortTime(r.ts) + (r.routed.length ? ' &rarr; ' + r.routed.join(', ') : '') + '</span>';
+                el.appendChild(div);
+            }
+        }
+
+        function renderResponses() {
+            var el = document.getElementById('responses');
+            el.innerHTML = '';
+            for (var i = responses.length - 1; i >= 0; i--) {
+                var r = responses[i];
+                var div = document.createElement('div');
+                div.className = 'resp-item';
+                div.innerHTML = '<span class="resp-source">' + esc(r.source) + '</span>' + (r.requestKey ? ' <span class="req-meta">' + r.requestKey + '</span>' : '') + '<span class="resp-time">' + shortTime(r.ts) + '</span><div class="resp-text">' + esc(r.text) + '</div>';
+                el.appendChild(div);
+            }
+        }
+
+        function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        function shortTime(iso) { try { return new Date(iso).toLocaleTimeString(); } catch(_) { return iso; } }
+
+        function showToast(msg) {
+            var t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(function() { t.classList.remove('show'); }, 2500);
+        }
+
+        // ========================================
+        // EXPOSED ACTIONS (onclick)
+        // ========================================
+        window.askMesh = function() {
+            var f = getFormData();
+            var result = doSubmit(f.title, f.desc, f.category, ['mesh']);
+            if (result.ok) { showToast('Sent to Mesh Chat (' + result.key + ')'); clearForm(); }
+            else showToast(result.error);
+        };
+
+        window.askLLM = function() {
+            var f = getFormData();
+            var result = doSubmit(f.title, f.desc, f.category, ['llm']);
+            if (result.ok) { showToast('Sent to LLM (' + result.key + ')'); clearForm(); }
+            else showToast(result.error);
+        };
+
+        window.saveOnly = function() {
+            var f = getFormData();
+            if (!f.title) { showToast('Title required'); return; }
+            // Force save checkbox on for this action
+            document.getElementById('chkSave').checked = true;
+            var result = doSubmit(f.title, f.desc, f.category, []);
+            if (result.ok) { showToast('Saved (' + result.key + ')'); clearForm(); }
+            else showToast(result.error);
+        };
+
+        window.copyKey = function(key) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(key).then(function() { showToast('Key copied: ' + key); });
+            }
+        };
+
+        // ========================================
+        // INIT
+        // ========================================
+        updateUI();
+        renderHistory();
+        if (navigator.onLine) { services.internet = true; updateUI(); }
+        window.addEventListener('online', function() { services.internet = true; updateUI(); });
+        window.addEventListener('offline', function() { services.internet = false; updateUI(); });
+
+    })();
+    </script>
+</body>
+</html>

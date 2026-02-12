@@ -1,0 +1,3350 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>platokit - debug hub</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:monospace;background:#111;color:#0f0;padding:15px;min-height:100vh}
+h3{margin:0 0 10px 0;color:#0ff}
+#debug{font-size:10px;color:#666;border:1px solid #333;padding:8px;margin-bottom:10px;display:flex;gap:15px;flex-wrap:wrap}
+#debug span{white-space:nowrap}
+#debug .yes{color:#0f0}
+#debug .no{color:#f44}
+#debug .warn{color:#ff0}
+
+/* PLATOKIT: Dev toolbar */
+#dev-toolbar{border:1px solid #ff0;background:#1a1a00;padding:10px;margin-bottom:10px;font-size:11px}
+#dev-toolbar .title{color:#ff0;margin-bottom:8px;font-weight:bold}
+#dev-toolbar .row{display:flex;gap:10px;align-items:center;margin-bottom:5px;flex-wrap:wrap}
+#dev-toolbar button{background:#330;border:1px solid #ff0;color:#ff0}
+#dev-toolbar button:hover{background:#550}
+#dev-toolbar select,#dev-toolbar input{background:#000;border:1px solid #555;color:#0f0;padding:4px;font-family:monospace;font-size:10px}
+#dev-toolbar .self-test{padding:5px;margin-top:5px;border-top:1px solid #333}
+#dev-toolbar .self-test .pass{color:#0f0}
+#dev-toolbar .self-test .fail{color:#f44}
+
+#caps{border:1px solid #333;padding:10px;margin-bottom:15px}
+#caps-title{color:#0ff;font-size:11px;margin-bottom:5px}
+#caps-list{color:#ff0;font-size:12px}
+#tiles-section{margin-top:8px}
+#tiles-title{color:#888;font-size:10px;margin-bottom:5px}
+#tiles-list{min-height:20px}
+#slots{display:flex;flex-wrap:wrap;gap:10px}
+.tile{border:1px solid #444;padding:10px;background:#0a0a0a;width:416px;flex-shrink:0}
+.tile.loading{border-color:#ff0}
+.tile.ready{border-color:#0f0}
+.tile.error{border-color:#f44}
+.tile-title{font-size:11px;color:#0ff;margin-bottom:5px;border-bottom:1px solid #333;padding-bottom:5px;display:flex;justify-content:space-between;align-items:center}
+.tile-title .info{flex:1}
+.tile-title .type{color:#888}
+.tile-title .source{color:#0f0}
+.tile-title .caps{color:#ff0;font-size:10px}
+.tile-title .close{background:#300;border:1px solid #f44;color:#f44;padding:0 6px;cursor:pointer;font-family:monospace}
+.tile-title .close:hover{background:#500}
+.tile-controls{display:flex;gap:5px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.tile-input{flex:1;min-width:120px;background:#000;border:1px solid #555;color:#0f0;padding:5px;font-family:monospace;font-size:11px}
+.tile-input:focus{border-color:#0f0;outline:none}
+.tile-input.drag-over{border-color:#0f0;background:#0f01}
+button{background:#030;border:1px solid #0f0;color:#0f0;padding:4px 8px;cursor:pointer;font-family:monospace;font-size:10px}
+button:hover{background:#050}
+iframe{border:1px solid #0f0;width:100%;height:390px;display:block;background:#000}
+#log{border:1px solid #333;padding:10px;max-height:150px;overflow:auto;font-size:11px;white-space:pre-wrap;background:#0a0a0a}
+.drop-zone{border:2px dashed #333;padding:20px;text-align:center;color:#555;margin-bottom:15px;transition:all 0.2s}
+.drop-zone.active{border-color:#0f0;color:#0f0;background:#0f01}
+</style>
+</head><body>
+
+<h3>platokit <span style="color:#ff0;font-size:10px">[debug]</span></h3>
+
+<div id="debug"></div>
+
+<!-- PLATOKIT: Dev Toolbar - debug-specific UI -->
+<div id="dev-toolbar">
+  <div class="title">Dev Controls</div>
+  <div class="row">
+    <label>Load Set:</label>
+    <select id="load-set-select"><option value="">(none)</option></select>
+    <button onclick="PlatoKit.loadSelectedSet()">Load Set</button>
+    <button onclick="PlatoKit.reloadAll()">Reload All</button>
+  </div>
+  <div class="row">
+    <label>Session:</label>
+    <input id="session-name" placeholder="session name" style="width:120px">
+    <button onclick="PlatoKit.saveSession()">Save</button>
+    <button onclick="PlatoKit.loadSession()">Load</button>
+    <button onclick="PlatoKit.copyDeepLink()">Copy Link</button>
+  </div>
+  <div class="row">
+    <label>View:</label>
+    <a id="skin-link" href="#" style="color:#0f0;text-decoration:underline;cursor:pointer;font-weight:bold" onclick="return false;">PlatoKit UI</a>
+    <span style="color:#555;margin:0 4px">|</span>
+    <a id="http-link" href="#" style="color:#0f0;text-decoration:underline;cursor:pointer" target="_blank" onclick="return false;">HTTP View</a>
+    <span style="color:#555;margin:0 4px">|</span>
+    <a id="debug-link" href="#" style="color:#0f0;text-decoration:underline;cursor:pointer" target="_blank" onclick="return false;">Debug View</a>
+  </div>
+  <div class="row" id="server-status-row">
+    <label>Server:</label>
+    <span id="server-status" style="color:#888">checking...</span>
+    <span id="server-hint" style="color:#f80;font-size:10px;display:none">run start_server.bat for LLM auth</span>
+  </div>
+  <div class="row" style="font-size:10px;color:#555">
+    <label>CLI:</label>
+    <code id="cli-hint" style="color:#888;cursor:pointer" title="click to copy">python start_server.py</code>
+  </div>
+  <div class="self-test" id="self-test">Self-test: <span id="self-test-result">running...</span></div>
+</div>
+
+<div class="drop-zone" id="drop-zone">
+  Drop .html files here or onto any tile
+</div>
+
+<div id="caps">
+  <div id="caps-title">Capabilities:</div>
+  <div id="caps-list">(none)</div>
+  <div id="tiles-section">
+    <div id="tiles-title">Loaded tiles:</div>
+    <div id="tiles-list"></div>
+  </div>
+</div>
+
+<div id="slots"></div>
+
+<h4 style="margin:10px 0 5px;color:#888">Log</h4>
+<div id="log"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ============================================================================
+  // PLATOKIT: CCM MATRIX WORKSPACE
+  // ============================================================================
+  //
+  // OAC THEORY IMPLEMENTATION
+  // -------------------------
+  // This file implements a CCM (Capability-Constraint-Method) Matrix Workspace
+  // where OAC tuples (Object, Algorithm, Constraint) load, transform, and exchange.
+  //
+  // TRANSFORM RULE: O' = O × A | C
+  // "New object state equals object transformed by algorithm under constraint"
+  //
+  // WORKSPACE STRUCTURE:
+  //   Workspace.O  - Objects: slots, frameMap, hubState, localStorage entries
+  //   Workspace.A  - Algorithms: services (Store, Http, EventBus, TabRelay, etc.)
+  //   Workspace.C  - Constraints: sandbox attrs, whitelists, protocol version
+  //   Workspace.K  - Kernel: window.onmessage (transform dispatcher)
+  //
+  // Each service module is an "Algorithm Bank" - a collection of A that can
+  // operate on O under C. The message handler (kernel) dispatches transforms.
+  //
+  // See: hubs_theory.md for full theoretical framework
+  // ============================================================================
+
+  window.name = 'platokit';
+
+  // ================================================================
+  // GLOBAL CONFIG - edit these if server/port/paths change
+  // ================================================================
+  const HUB_SERVER = 'http://127.0.0.1:8081';    // local dev server (start_server.bat)
+  const HUB_SERVER_ALT = 'http://localhost:8081'; // alias
+  const DEBUG_WEB_SERVER = 'http://127.0.0.1:8766';     // python dev web UI (platokit_debugger.py --web)
+  const DEBUG_WEB_SERVER_ALT = 'http://localhost:8766'; // alias
+  // ================================================================
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Internal Storage Transforms
+  // --------------------------------------------------------------------------
+  // O: localStorage entries (hub's own persistent state)
+  // A: test, get, set, remove, saveSession, getSession, listSessions
+  // C: STORAGE_PREFIX namespace isolation, SESSION_PREFIX, browser quota
+  //
+  // Classical: Repository Pattern, Self-Test Pattern
+  // ==========================================================================
+  const PlatoKitStorage = (function() {
+    // C: Namespace constraints - isolate hub keys from cap keys
+    const STORAGE_PREFIX = 'platokit_';
+    const SESSION_PREFIX = 'platokit_session_';
+
+    let _available = null;
+    let _testResult = null;
+
+    // Self-test: verify localStorage works AND persists across reloads
+    function test() {
+      if (_testResult !== null) return _testResult;
+
+      const testKey = STORAGE_PREFIX + 'selftest_' + Date.now();
+      const testVal = 'test_' + Math.random();
+      const persistKey = STORAGE_PREFIX + 'persist_check';
+
+      try {
+        // Basic read/write test
+        localStorage.setItem(testKey, testVal);
+        const retrieved = localStorage.getItem(testKey);
+        localStorage.removeItem(testKey);
+
+        if (retrieved !== testVal) {
+          _available = false;
+          _testResult = { pass: false, msg: 'localStorage read mismatch', persists: null };
+          return _testResult;
+        }
+
+        // Persistence test - check if previous visit exists
+        const lastVisit = localStorage.getItem(persistKey);
+        const now = Date.now();
+        localStorage.setItem(persistKey, now.toString());
+
+        let persistMsg = 'first visit';
+        if (lastVisit) {
+          const elapsed = now - parseInt(lastVisit, 10);
+          if (elapsed < 60000) {
+            persistMsg = 'persists (' + Math.round(elapsed / 1000) + 's ago)';
+          } else if (elapsed < 3600000) {
+            persistMsg = 'persists (' + Math.round(elapsed / 60000) + 'm ago)';
+          } else {
+            persistMsg = 'persists (' + Math.round(elapsed / 3600000) + 'h ago)';
+          }
+        }
+
+        _available = true;
+        _testResult = { pass: true, msg: 'localStorage OK', persistMsg: persistMsg };
+
+      } catch (e) {
+        _available = false;
+        _testResult = { pass: false, msg: 'localStorage error: ' + e.message, persists: null };
+      }
+
+      return _testResult;
+    }
+
+    function isAvailable() {
+      if (_available === null) test();
+      return _available;
+    }
+
+    function get(key) {
+      if (!isAvailable()) return null;
+      try {
+        const raw = localStorage.getItem(STORAGE_PREFIX + key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function set(key, value) {
+      if (!isAvailable()) return false;
+      try {
+        localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function remove(key) {
+      if (!isAvailable()) return false;
+      try {
+        localStorage.removeItem(STORAGE_PREFIX + key);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Session management
+    function saveSession(name, data) {
+      return set('session_' + name, {
+        name: name,
+        savedAt: new Date().toISOString(),
+        data: data
+      });
+    }
+
+    function getSession(name) {
+      const session = get('session_' + name);
+      return session ? session.data : null;
+    }
+
+    function listSessions() {
+      if (!isAvailable()) return [];
+      const sessions = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key.startsWith(SESSION_PREFIX)) {
+            const name = key.slice(SESSION_PREFIX.length);
+            sessions.push(name);
+          }
+        }
+      } catch (e) {}
+      return sessions;
+    }
+
+    return {
+      test,
+      isAvailable,
+      get,
+      set,
+      remove,
+      saveSession,
+      getSession,
+      listSessions,
+      PREFIX: STORAGE_PREFIX
+    };
+  })();
+  // END STORAGE MODULE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - URL Parameter Transforms
+  // --------------------------------------------------------------------------
+  // O: URL search params (location.search)
+  // A: parse, build, getLoadSet, getTiles, getBase64Iframe, getRestore
+  // C: Parameter validation, security lockdowns (getAllowPopups, getAllowSameOrigin)
+  //
+  // Classical: Configuration Pattern, Builder Pattern
+  // ==========================================================================
+  const PlatoKitParams = (function() {
+
+    function parse() {
+      return new URLSearchParams(location.search);
+    }
+
+    function getLoadSet() {
+      return parse().get('load_set') || null;
+    }
+
+    function getTiles() {
+      const tilesParam = parse().get('tiles');
+      if (!tilesParam) return [];
+      return tilesParam.split(',').map(t => t.trim()).filter(Boolean);
+    }
+
+    function getBase64Iframe() {
+      return parse().get('iframe_src_base64') || null;
+    }
+
+    function getRestore() {
+      return parse().get('restore') || null;
+    }
+
+    // ========================================================================
+    // SECURITY-SENSITIVE PARAM: allow_popups
+    // ========================================================================
+    // ========================================
+    // SANDBOX PERMISSIONS REFERENCE
+    // ========================================
+    // Default: allow-scripts allow-modals allow-downloads
+    //   - allow-scripts: Required for caps to run JS
+    //   - allow-modals: Allows alert(), confirm(), prompt() - useful for debugging
+    //   - allow-downloads: Allows triggering file downloads (Blob URLs, etc.)
+    //
+    // Optional (via URL params):
+    //   - allow-popups: Caps can open popups (risky - they escape sandbox)
+    //   - allow-same-origin: Caps can access parent (very risky - breaks isolation)
+    //
+    // Caps that need specific permissions:
+    //   - platokit_export_ui.html: allow-downloads (for exporting JSON/HTML files)
+    //   - chat_gateway-allenai_kit.html: none extra (uses tab relay for auth)
+    //   - auth_puter_kit.html: NOT sandboxed (runs as separate tab)
+    // ========================================
+
+    // PURPOSE: Enables modals (alert, confirm, prompt) in sandboxed caps
+    // RISK: Low - modals are annoying but not a security risk
+    // DEFAULT: true (enabled) - useful for debugging
+    function getAllowModals() {
+      return parse().get('allow_modals') !== 'false';  // ON by default
+    }
+
+    // PURPOSE: Enables file downloads from sandboxed caps
+    // RISK: Low - user still sees download prompt
+    // DEFAULT: true (enabled) - needed for export functionality
+    function getAllowDownloads() {
+      return parse().get('allow_downloads') !== 'false';  // ON by default
+    }
+
+    // PURPOSE: Enables popup auth flows (e.g., Puter.js) from sandboxed caps
+    //
+    // WHAT IT DOES:
+    //   Adds 'allow-popups allow-popups-to-escape-sandbox' to iframe sandbox
+    //
+    // SECURITY IMPLICATIONS:
+    //   - Any cap can call window.open() to ANY URL
+    //   - Popup windows escape sandbox (run with full browser privileges)
+    //   - Malicious cap could open phishing pages, crypto miners, etc.
+    //   - Only enable when loading TRUSTED caps that need popup auth
+    //
+    // USAGE: ?allow_popups=true
+    // ========================================================================
+    // LOCKDOWN: Disabled until tab-based auth flow implemented (see llm_auth_flow.md)
+    function getAllowPopups() {
+      return false; // parse().get('allow_popups') === 'true';
+    }
+
+    // ========================================================================
+    // SECURITY-SENSITIVE PARAM: allow_same_origin
+    // ========================================================================
+    // PURPOSE: Gives iframe a real origin (not null) for postMessage callbacks
+    //
+    // WHAT IT DOES:
+    //   Adds 'allow-same-origin' to iframe sandbox
+    //
+    // WHY NEEDED:
+    //   Popup auth (Puter.js etc) needs to postMessage back to opener.
+    //   Sandboxed iframes have 'null' origin - postMessage fails.
+    //   This gives iframe real origin so popup callback works.
+    //
+    // SECURITY IMPLICATIONS:
+    //   - Cap shares origin with hub (can access hub's localStorage, cookies)
+    //   - Cap can make same-origin requests as hub
+    //   - Significantly weakens sandbox isolation
+    //   - Only enable when loading TRUSTED caps that need popup auth callbacks
+    //
+    // USAGE: ?allow_same_origin=true (usually with allow_popups=true)
+    // ========================================================================
+    // UNLOCKED: Tab-based auth flow is implemented (see llm_auth_flow.md).
+    // Needed for caps using Puter.js SDK (IndexedDB, localStorage access in sandbox).
+    // SECURITY NOTE: allow-same-origin + allow-scripts weakens sandbox isolation.
+    // Only enable when loading TRUSTED caps (e.g. chats_gateway_allenai).
+    function getAllowSameOrigin() {
+      return parse().get('allow_same_origin') === 'true';
+    }
+
+    // SKIN MODE: Default ON. Use ?hub=true to get the raw debug view.
+    function getSkinMode() {
+      if ((parse().get('hub') || '').toLowerCase() === 'true') return false;
+      if ((parse().get('skin') || '').toLowerCase() === 'false') return false;
+      return true;
+    }
+
+    // SKIN URL: Custom skin path (default: hubskins/skin_hub.html)
+    function getSkinUrl() {
+      return parse().get('skin_url') || 'hubskins/skin_hub.html';
+    }
+
+    // Build URL with current state
+    function build(state) {
+      const url = new URL(location.href.split('?')[0]);
+
+      if (state.tiles && state.tiles.length > 0) {
+        url.searchParams.set('tiles', state.tiles.join(','));
+      }
+      if (state.load_set) {
+        url.searchParams.set('load_set', state.load_set);
+      }
+      if (state.restore) {
+        url.searchParams.set('restore', state.restore);
+      }
+
+      return url.toString();
+    }
+
+    return {
+      parse,
+      getLoadSet,
+      getTiles,
+      getBase64Iframe,
+      getRestore,
+      getAllowModals,
+      getAllowDownloads,
+      getAllowPopups,
+      getAllowSameOrigin,
+      getSkinMode,
+      getSkinUrl,
+      build
+    };
+  })();
+  // END URL PARAMS MODULE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Capability Storage Transforms
+  // --------------------------------------------------------------------------
+  // O: localStorage entries (capability persistent state, namespaced under cap_)
+  // A: get, set, append, remove, list, clear (via handle dispatcher)
+  // C: STORE_PREFIX namespace isolation, storage availability
+  //
+  // Protocol: { kind: 'store', v: 1, id: 'req_x', payload: { op, key, value? } }
+  // Response: { kind: 'store_response', v: 1, id: 'req_x', payload: { value?, success?, error? } }
+  //
+  // Classical: Repository Pattern, Command Pattern (op dispatch)
+  // ==========================================================================
+  const HubStoreService = (function() {
+    // C: Namespace constraint - cap storage isolated from hub storage
+    const STORE_PREFIX = 'cap_';
+
+    // GET - retrieve value
+    function doGet(key) {
+      const val = PlatoKitStorage.get(STORE_PREFIX + key);
+      return { value: val, exists: val !== null };
+    }
+
+    // SET - store value (overwrites)
+    function doSet(key, value) {
+      const success = PlatoKitStorage.set(STORE_PREFIX + key, value);
+      return success ? { success: true } : { error: 'storage failed' };
+    }
+
+    // APPEND - append to array (creates array if needed)
+    function doAppend(key, value) {
+      const existing = PlatoKitStorage.get(STORE_PREFIX + key);
+      let arr = Array.isArray(existing) ? existing : [];
+      arr.push(value);
+      const success = PlatoKitStorage.set(STORE_PREFIX + key, arr);
+      return success ? { success: true, length: arr.length } : { error: 'storage failed' };
+    }
+
+    // REMOVE - delete key
+    function doRemove(key) {
+      const success = PlatoKitStorage.remove(STORE_PREFIX + key);
+      return { success: success };
+    }
+
+    // LIST - list keys with optional prefix
+    function doList(prefix) {
+      if (!PlatoKitStorage.isAvailable()) return { error: 'storage unavailable' };
+      const keys = [];
+      const fullPrefix = PlatoKitStorage.PREFIX + STORE_PREFIX + (prefix || '');
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(fullPrefix)) {
+            keys.push(k.slice((PlatoKitStorage.PREFIX + STORE_PREFIX).length));
+          }
+        }
+      } catch (e) {
+        return { error: e.message };
+      }
+      return { keys: keys, count: keys.length };
+    }
+
+    // Handle incoming store request
+    function handle(op, key, value) {
+      switch (op) {
+        case 'get':
+          return doGet(key);
+        case 'set':
+          return doSet(key, value);
+        case 'append':
+          return doAppend(key, value);
+        case 'remove':
+          return doRemove(key);
+        case 'list':
+          return doList(key);  // key used as prefix for list
+        case 'clear':
+          return doSet(key, []);  // Clear = set to empty
+        default:
+          return { error: 'unknown op: ' + op };
+      }
+    }
+
+    return { handle };
+  })();
+  // END HUB STORE SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - HTTP Request Transforms
+  // --------------------------------------------------------------------------
+  // O: HTTP request/response objects, requestLog (audit trail)
+  // A: handle (execute fetch transform)
+  // C: ALLOWED_METHODS whitelist, CORS policy (browser-enforced), MAX_LOG limit
+  //
+  // Protocol: { kind: 'http', v: 1, id: 'req_x', payload: { method, url, headers?, body? } }
+  // Response: { kind: 'http_response', v: 1, id: 'req_x', payload: { ok, status, statusText, headers, body, error? } }
+  //
+  // Classical: Proxy Pattern, Adapter Pattern
+  // ==========================================================================
+  const HubHttpService = (function() {
+    // O: Audit log (transform history)
+    const requestLog = [];
+    // C: Log size constraint
+    const MAX_LOG = 100;
+    // C: Method whitelist constraint - only these A are permitted
+    const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+    // Handle incoming http request
+    async function handle(payload) {
+      const { method = 'GET', url, headers = {}, body } = payload;
+
+      // Validate
+      if (!url) {
+        return { error: 'url required' };
+      }
+
+      const upperMethod = method.toUpperCase();
+      if (!ALLOWED_METHODS.includes(upperMethod)) {
+        return { error: 'method not allowed: ' + method };
+      }
+
+      // Log request
+      const logEntry = {
+        ts: new Date().toISOString(),
+        method: upperMethod,
+        url: url,
+        status: null,
+        error: null
+      };
+
+      try {
+        // Build fetch options
+        const fetchOpts = {
+          method: upperMethod,
+          headers: headers
+        };
+
+        // Add body for methods that support it
+        if (body !== undefined && !['GET', 'HEAD'].includes(upperMethod)) {
+          if (typeof body === 'object') {
+            fetchOpts.body = JSON.stringify(body);
+            // Auto-set content-type if not provided
+            if (!headers['Content-Type'] && !headers['content-type']) {
+              fetchOpts.headers['Content-Type'] = 'application/json';
+            }
+          } else {
+            fetchOpts.body = body;
+          }
+        }
+
+        // Execute fetch
+        const response = await fetch(url, fetchOpts);
+
+        // Extract response headers
+        const responseHeaders = {};
+        response.headers.forEach((v, k) => { responseHeaders[k] = v; });
+
+        // Read body as text (caller can parse as needed)
+        let responseBody = null;
+        try {
+          responseBody = await response.text();
+        } catch (e) {
+          responseBody = null;
+        }
+
+        // Update log
+        logEntry.status = response.status;
+
+        // Return structured response
+        return {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          headers: responseHeaders,
+          body: responseBody
+        };
+
+      } catch (e) {
+        // Network error, CORS block, etc.
+        logEntry.error = e.message;
+        return {
+          ok: false,
+          status: 0,
+          statusText: 'Network Error',
+          headers: {},
+          body: null,
+          error: e.message
+        };
+
+      } finally {
+        // Add to log (trim if needed)
+        requestLog.push(logEntry);
+        if (requestLog.length > MAX_LOG) {
+          requestLog.shift();
+        }
+      }
+    }
+
+    // Get request log (for debugging)
+    function getLog() {
+      return [...requestLog];
+    }
+
+    // Clear log
+    function clearLog() {
+      requestLog.length = 0;
+    }
+
+    return { handle, getLog, clearLog };
+  })();
+  // END HUB HTTP SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Service Discovery Transforms
+  // --------------------------------------------------------------------------
+  // O: SERVICES registry, HUB_INFO metadata
+  // A: getCapabilities, getServiceList, hasService, getService
+  // C: Read-only (no mutations), static registry
+  //
+  // Protocol: { kind: 'capabilities', v: 1, id: 'req_x' }
+  // Response: { kind: 'capabilities_response', v: 1, id: 'req_x', payload: { services: [...] } }
+  //
+  // Classical: Registry Pattern, Service Locator Pattern
+  // ==========================================================================
+  const HubCapabilitiesService = (function() {
+    // O: Static registry of available algorithm banks
+    // This is the CCM Matrix's "catalog of what's possible"
+    const SERVICES = [
+      {
+        name: 'store',
+        kind: 'store',
+        responseKind: 'store_response',
+        description: 'Persistent key-value storage',
+        ops: ['get', 'set', 'append', 'remove', 'list', 'clear']
+      },
+      {
+        name: 'http',
+        kind: 'http',
+        responseKind: 'http_response',
+        description: 'HTTP fetch proxy',
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
+      },
+      {
+        name: 'capabilities',
+        kind: 'capabilities',
+        responseKind: 'capabilities_response',
+        description: 'Service discovery (this service)'
+      },
+      {
+        name: 'load_base64',
+        kind: 'load_base64',
+        responseKind: null,
+        description: 'Load iframe content from base64'
+      },
+      {
+        name: 'event_bus',
+        kind: 'bus_*',
+        responseKind: 'bus_*_response',
+        description: 'Pub/sub event bus for inter-cap communication',
+        ops: ['subscribe', 'unsubscribe', 'publish', 'broadcast', 'list_topics']
+      },
+      {
+        name: 'tab_relay',
+        kind: 'open_tab',
+        responseKind: 'tab_relay_response',
+        description: 'RPC via tabs - open tabs, route postMessage responses back',
+        note: 'URL must be in whitelist. Tab responds via tab_relay message.'
+      }
+    ];
+
+    // Hub metadata
+    const HUB_INFO = {
+      name: 'platokit',
+      version: '1.0.0',
+      type: 'debug',
+      protocol_version: 1
+    };
+
+    function getCapabilities() {
+      return {
+        hub: HUB_INFO,
+        services: SERVICES,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Get just service names (lightweight)
+    function getServiceList() {
+      return SERVICES.map(s => s.name);
+    }
+
+    // Check if a service exists
+    function hasService(name) {
+      return SERVICES.some(s => s.name === name);
+    }
+
+    // Get info for a specific service
+    function getService(name) {
+      return SERVICES.find(s => s.name === name) || null;
+    }
+
+    return {
+      getCapabilities,
+      getServiceList,
+      hasService,
+      getService,
+      SERVICES,
+      HUB_INFO
+    };
+  })();
+  // END HUB CAPABILITIES SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Event Bus Transforms (OAC Distribution Network)
+  // --------------------------------------------------------------------------
+  // O: subscriptions (Map: topic → Set<{source, slotId}>), eventLog
+  // A: subscribe, unsubscribe, unsubscribeAll, publish, broadcast, listTopics
+  // C: Topic matching, subscription state, MAX_LOG limit
+  //
+  // Protocol:
+  //   Subscribe:   { kind: 'bus_subscribe', v: 1, id: 'req_x', payload: { topic: 'xxx' } }
+  //   Unsubscribe: { kind: 'bus_unsubscribe', v: 1, id: 'req_x', payload: { topic: 'xxx' } }
+  //   Publish:     { kind: 'bus_publish', v: 1, payload: { topic: 'xxx', data: {...} } }
+  //   Broadcast:   { kind: 'bus_broadcast', v: 1, payload: { data: {...} } }
+  //
+  // Events pushed to subscribers:
+  //   { kind: 'bus_event', v: 1, payload: { topic: 'xxx', data: {...}, from: slotId } }
+  //
+  // OAC Note: This is the distributed OAC transform network - it routes O to
+  // multiple destinations, applying A (route) under C (subscribed to topic).
+  //
+  // Classical: Observer Pattern, Pub/Sub Pattern, Mediator Pattern
+  // ==========================================================================
+  const HubEventBusService = (function() {
+    // O: Subscription registry - who receives which transforms
+    // topic → Set of { source: window, slotId: number }
+    const subscriptions = new Map();
+
+    // O: Retained messages - last published event per topic
+    // topic → { data, fromSlotId }
+    // New subscribers get the retained event immediately (fixes load-order timing)
+    const retained = new Map();
+
+    // O: Event log (transform audit trail)
+    const eventLog = [];
+    // C: Log size constraint
+    const MAX_LOG = 50;
+
+    // Subscribe a source to a topic
+    // If a retained event exists for this topic, deliver it immediately
+    function subscribe(source, slotId, topic) {
+      if (!subscriptions.has(topic)) {
+        subscriptions.set(topic, new Set());
+      }
+      subscriptions.get(topic).add({ source, slotId });
+      logEvent('subscribe', slotId, topic);
+
+      // Deliver retained event if available (fixes load-order timing)
+      const ret = retained.get(topic);
+      if (ret) {
+        try {
+          source.postMessage({
+            kind: 'bus_event', v: 1,
+            payload: { topic, data: ret.data, from: ret.fromSlotId }
+          }, '*');
+          logEvent('retained_replay', slotId, topic);
+        } catch (e) {}
+      }
+
+      return { success: true, topic };
+    }
+
+    // Unsubscribe a source from a topic
+    function unsubscribe(source, slotId, topic) {
+      if (!subscriptions.has(topic)) {
+        return { success: false, error: 'topic not found' };
+      }
+      const subs = subscriptions.get(topic);
+      for (const sub of subs) {
+        if (sub.slotId === slotId) {
+          subs.delete(sub);
+          logEvent('unsubscribe', slotId, topic);
+          return { success: true, topic };
+        }
+      }
+      return { success: false, error: 'not subscribed' };
+    }
+
+    // Unsubscribe a source from all topics (cleanup on iframe removal)
+    function unsubscribeAll(slotId) {
+      let count = 0;
+      for (const [topic, subs] of subscriptions) {
+        for (const sub of subs) {
+          if (sub.slotId === slotId) {
+            subs.delete(sub);
+            count++;
+          }
+        }
+      }
+      return { success: true, unsubscribed: count };
+    }
+
+    // Publish to a specific topic
+    // Retains last event per topic for late subscribers
+    function publish(fromSlotId, topic, data) {
+      retained.set(topic, { data, fromSlotId });
+
+      if (!subscriptions.has(topic)) {
+        logEvent('publish', fromSlotId, topic, '(no subscribers, retained)');
+        return { success: true, delivered: 0 };
+      }
+
+      const subs = subscriptions.get(topic);
+      let delivered = 0;
+
+      for (const sub of subs) {
+        try {
+          sub.source.postMessage({
+            kind: 'bus_event',
+            v: 1,
+            payload: { topic, data, from: fromSlotId }
+          }, '*');
+          delivered++;
+        } catch (e) {
+          // Source may have been removed
+        }
+      }
+
+      logEvent('publish', fromSlotId, topic, `delivered: ${delivered}`);
+      return { success: true, delivered };
+    }
+
+    // Broadcast to all caps (all subscriptions, all topics)
+    function broadcast(fromSlotId, data) {
+      const allSources = new Set();
+
+      // Collect unique sources
+      for (const [topic, subs] of subscriptions) {
+        for (const sub of subs) {
+          allSources.add(sub);
+        }
+      }
+
+      let delivered = 0;
+      for (const sub of allSources) {
+        try {
+          sub.source.postMessage({
+            kind: 'bus_event',
+            v: 1,
+            payload: { topic: '_broadcast', data, from: fromSlotId }
+          }, '*');
+          delivered++;
+        } catch (e) {}
+      }
+
+      logEvent('broadcast', fromSlotId, '_broadcast', `delivered: ${delivered}`);
+      return { success: true, delivered };
+    }
+
+    // Send to a specific slot (direct message)
+    function sendTo(fromSlotId, toSlotId, data) {
+      // Need access to slots map - will be injected
+      logEvent('sendTo', fromSlotId, `slot:${toSlotId}`, 'direct');
+      return { success: true, to: toSlotId };
+    }
+
+    // List all topics
+    function listTopics() {
+      const topics = [];
+      for (const [topic, subs] of subscriptions) {
+        topics.push({ topic, subscribers: subs.size });
+      }
+      return topics;
+    }
+
+    // List subscribers for a topic
+    function listSubscribers(topic) {
+      if (!subscriptions.has(topic)) return [];
+      return [...subscriptions.get(topic)].map(s => s.slotId);
+    }
+
+    function logEvent(action, slotId, topic, detail = '') {
+      eventLog.push({
+        ts: new Date().toISOString(),
+        action,
+        slotId,
+        topic,
+        detail
+      });
+      if (eventLog.length > MAX_LOG) eventLog.shift();
+    }
+
+    function getLog() {
+      return [...eventLog];
+    }
+
+    function clearLog() {
+      eventLog.length = 0;
+    }
+
+    function getRetained(topic) {
+      if (topic) return retained.get(topic) || null;
+      const all = {};
+      for (const [t, v] of retained) all[t] = v;
+      return all;
+    }
+
+    return {
+      subscribe,
+      unsubscribe,
+      unsubscribeAll,
+      publish,
+      broadcast,
+      sendTo,
+      listTopics,
+      listSubscribers,
+      getRetained,
+      getLog,
+      clearLog
+    };
+  })();
+  // END HUB EVENT BUS SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Tab Relay Transforms (Privilege Escalation Channel)
+  // --------------------------------------------------------------------------
+  // O: pendingRequests (Map: request_id → {source, slotId, url, openedAt, tab}), activityLog
+  // A: openTab, handleTabRelay, getPending, addAllowedUrl
+  // C: ALLOWED_URLS whitelist (CRITICAL SECURITY BOUNDARY), MAX_LOG limit
+  //
+  // Protocol:
+  //   Cap -> Hub: { kind: 'open_tab', id: 'req_x', payload: { url, ... } }
+  //   Tab -> Hub: { kind: 'tab_relay', request_id: 'req_x', payload: {...} }
+  //   Hub -> Cap: { kind: 'tab_relay_response', id: 'req_x', payload: {...} }
+  //
+  // OAC Note: This creates a privilege-escalated OAC pathway. The constraint C
+  // changes across zones: caps (sandboxed) → hub (mediator) → tabs (unsandboxed).
+  // Hub manages the boundary, applying C (whitelist) before allowing A (openTab).
+  //
+  // SECURITY:
+  //   - Hub controls which URLs can be opened (whitelist = C)
+  //   - Tabs run WITHOUT sandbox - only open TRUSTED pages
+  //   - Request correlation ensures responses route to correct cap
+  //
+  // Classical: Proxy Pattern, RPC Pattern, Security Gateway
+  // See: llm_auth_flow.md, sim_hubs.md
+  // ==========================================================================
+  const HubTabRelayService = (function() {
+    // O: Pending requests awaiting tab response (correlation state)
+    // request_id → { source, slotId, url, openedAt, tab }
+    const pendingRequests = new Map();
+
+    // Whitelist of allowed tab URLs (must be FULL http:// - see llm_auth_flow.md)
+    // Uses HUB_SERVER / HUB_SERVER_ALT from outer scope GLOBAL CONFIG
+    const ALLOWED_URLS = [
+      HUB_SERVER + '/caps/chats/auth_puter_kit.html',
+      HUB_SERVER_ALT + '/caps/chats/auth_puter_kit.html',
+      // GitHub Pages for production:
+      // 'https://yourusername.github.io/repo/caps/chats/auth_puter_kit.html',
+    ];
+
+    // Log of tab relay activity
+    const activityLog = [];
+    const MAX_LOG = 50;
+
+    function addLog(entry) {
+      activityLog.push({ ...entry, timestamp: new Date().toISOString() });
+      if (activityLog.length > MAX_LOG) activityLog.shift();
+    }
+
+    // Check if URL is allowed
+    function isAllowed(url) {
+      // Allow if in whitelist or starts with allowed prefix
+      return ALLOWED_URLS.some(allowed => url === allowed || url.startsWith(allowed + '?'));
+    }
+
+    // Open tab for a cap
+    function openTab(source, slotId, requestId, url, options = {}) {
+      // Security check
+      if (!isAllowed(url)) {
+        addLog({ action: 'denied', slotId, requestId, url, reason: 'not_whitelisted' });
+        return { success: false, error: 'URL not in whitelist', url };
+      }
+
+      // Append request_id to URL so tab knows how to respond
+      const separator = url.includes('?') ? '&' : '?';
+      const fullUrl = `${url}${separator}request_id=${encodeURIComponent(requestId)}`;
+
+      // Open the tab/window
+      // OPTION: Popup window vs browser tab
+      //   - With features string: opens as sized popup window
+      //   - Without/empty features: opens as browser tab
+      // Tab could be styled to mimic file:// hub appearance
+      // See llm_auth_flow.md "Window vs Tab" section
+      const features = options.features !== undefined ? options.features : 'width=500,height=600';
+      const tab = window.open(fullUrl, '_blank', features);
+
+      if (!tab) {
+        addLog({ action: 'blocked', slotId, requestId, url, reason: 'popup_blocked' });
+        return { success: false, error: 'Popup blocked by browser', url };
+      }
+
+      // Track pending request
+      pendingRequests.set(requestId, {
+        source,
+        slotId,
+        url,
+        openedAt: Date.now(),
+        tab
+      });
+
+      addLog({ action: 'opened', slotId, requestId, url });
+      return { success: true, requestId, url };
+    }
+
+    // Handle response from tab
+    function handleTabRelay(requestId, payload) {
+      const pending = pendingRequests.get(requestId);
+      if (!pending) {
+        addLog({ action: 'orphan_response', requestId, reason: 'no_pending_request' });
+        return { success: false, error: 'No pending request for this request_id' };
+      }
+
+      // Route response back to requesting cap
+      pending.source.postMessage({
+        kind: 'tab_relay_response',
+        v: 1,
+        id: requestId,
+        payload
+      }, '*');
+
+      addLog({ action: 'relayed', requestId, slotId: pending.slotId });
+
+      // Clean up
+      pendingRequests.delete(requestId);
+
+      return { success: true, requestId };
+    }
+
+    // Get pending requests (for debugging)
+    function getPending() {
+      return Array.from(pendingRequests.entries()).map(([id, req]) => ({
+        requestId: id,
+        slotId: req.slotId,
+        url: req.url,
+        openedAt: req.openedAt,
+        ageMs: Date.now() - req.openedAt
+      }));
+    }
+
+    // Get activity log (for debugging)
+    function getLog() {
+      return [...activityLog];
+    }
+
+    // Add URL to whitelist (for debugging/runtime config)
+    function addAllowedUrl(url) {
+      if (!ALLOWED_URLS.includes(url)) {
+        ALLOWED_URLS.push(url);
+      }
+    }
+
+    // Get whitelist (for debugging)
+    function getAllowedUrls() {
+      return [...ALLOWED_URLS];
+    }
+
+    return {
+      openTab,
+      handleTabRelay,
+      getPending,
+      getLog,
+      addAllowedUrl,
+      getAllowedUrls
+    };
+  })();
+  // END HUB TAB RELAY SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - State Management Transforms (Workspace Snapshot)
+  // --------------------------------------------------------------------------
+  // O: slots state, capturedSources, hubStorage, capStates
+  // A: getWorkspaceState, queryCapState, fetchSourceForUrl, exportToJson
+  // C: Protocol version, state_query timeout, source availability
+  //
+  // Protocol:
+  //   Hub -> Cap: { kind: 'state_query', v: 1, id: 'req_x' }
+  //   Cap -> Hub: { kind: 'state_response', v: 1, id: 'req_x', payload: { state: {...} } }
+  //
+  // OAC Note: This service captures the full OAC workspace state for
+  // serialization. It's the "snapshot" algorithm - freezing O at a point in time.
+  //
+  // Classical: Memento Pattern, Snapshot Pattern
+  // See: save_load_workspace.md
+  // ==========================================================================
+  const HubStateService = (function() {
+    // Pending state queries (waiting for cap responses)
+    const pendingStateQueries = new Map();
+    const STATE_QUERY_TIMEOUT = 3000;  // 3 seconds
+
+    // Generate unique request ID
+    function genId() {
+      return 'state_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    }
+
+    // Get all hub storage (cap_ prefixed keys)
+    function getHubStorage() {
+      if (!PlatoKitStorage.isAvailable()) return {};
+      const storage = {};
+      const prefix = PlatoKitStorage.PREFIX + 'cap_';
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(prefix)) {
+            const shortKey = key.slice(PlatoKitStorage.PREFIX.length);
+            storage[shortKey] = JSON.parse(localStorage.getItem(key));
+          }
+        }
+      } catch (e) {
+        console.error('HubStateService: storage read error', e);
+      }
+      return storage;
+    }
+
+    // Fetch source for a URL-loaded cap (async)
+    // Note: file:// URLs cannot be fetched due to browser security - use file drop instead
+    async function fetchSourceForUrl(url) {
+      // file:// URLs can't be fetched via Fetch API (browser security)
+      if (url.startsWith('file://') || url.startsWith('file:///')) {
+        console.info('HubStateService: file:// URLs cannot be fetched for export. Use file drop instead of URL input.');
+        return null;
+      }
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.text();
+      } catch (e) {
+        console.warn('HubStateService: failed to fetch source for', url, e.message);
+        return null;
+      }
+    }
+
+    // Query a single cap for its state (returns Promise)
+    function queryCapState(slotId, frame) {
+      return new Promise((resolve) => {
+        const reqId = genId();
+        const timeout = setTimeout(() => {
+          pendingStateQueries.delete(reqId);
+          resolve({ slotId, state: null, error: 'timeout' });
+        }, STATE_QUERY_TIMEOUT);
+
+        pendingStateQueries.set(reqId, { slotId, resolve, timeout });
+
+        frame.contentWindow.postMessage({
+          kind: 'state_query',
+          v: 1,
+          id: reqId
+        }, '*');
+      });
+    }
+
+    // Query a skin-hosted cap for its state (returns Promise)
+    function queryCapStateThroughSkin(slotId, viewport) {
+      return new Promise((resolve) => {
+        const reqId = genId();
+        const timeout = setTimeout(() => {
+          pendingStateQueries.delete(reqId);
+          resolve({ slotId, state: null, error: 'timeout' });
+        }, STATE_QUERY_TIMEOUT);
+
+        pendingStateQueries.set(reqId, { slotId, resolve, timeout });
+
+        // Send through skin
+        HubSkinService.sendToSkin('cap_message', {
+          viewport,
+          message: {
+            kind: 'state_query',
+            v: 1,
+            id: reqId
+          }
+        });
+      });
+    }
+
+    // Handle state_response from cap
+    function handleStateResponse(reqId, payload) {
+      const pending = pendingStateQueries.get(reqId);
+      if (!pending) return false;
+
+      clearTimeout(pending.timeout);
+      pendingStateQueries.delete(reqId);
+      pending.resolve({ slotId: pending.slotId, state: payload.state || null, error: null });
+      return true;
+    }
+
+    // Get full workspace state (async - queries all caps)
+    async function getWorkspaceState(options = {}) {
+      const {
+        includeStorage = true,
+        includeSources = true,
+        includeCapStates = true,
+        fetchMissingSources = true
+      } = options;
+
+      const state = {
+        version: 1,
+        created: new Date().toISOString(),
+        hub: {
+          name: 'platokit',
+          version: '1.0.0',
+          workspaceId: hubState.workspaceId
+        },
+        hubState: {
+          userId: hubState.userId
+        },
+        slots: [],
+        eventBus: {
+          subscriptions: HubEventBusService.listTopics()
+        }
+      };
+
+      // Include hub storage if requested
+      if (includeStorage) {
+        state.hubState.storageSnapshot = getHubStorage();
+      }
+
+      // Collect slot states
+      const capStatePromises = [];
+
+      for (const [id, s] of slots) {
+        if (s.status === 'empty') continue;
+
+        const slotState = {
+          slotId: id,
+          loadInfo: {
+            type: s.type,
+            inputValue: s.inputValue,
+            source: s.source
+          },
+          registration: {
+            name: s.capName || null,
+            version: s.capVersion || null,
+            methods: s.methods || []
+          },
+          status: s.status
+        };
+
+        // Include captured source if available
+        if (includeSources) {
+          if (s.capturedSource) {
+            slotState.sourceHtml = s.capturedSource;
+          } else if (fetchMissingSources && s.inputValue && (s.type === 'url' || s.type === 'file')) {
+            // Will fetch async below
+            slotState._needsFetch = s.inputValue;
+          }
+        }
+
+        // Query cap for its state if requested
+        if (includeCapStates && s.status === 'ready') {
+          const frame = document.getElementById('frame-' + id);
+          if (frame) {
+            // Direct hub iframe
+            capStatePromises.push(
+              queryCapState(id, frame).then(result => {
+                if (result.state) {
+                  slotState.capState = result.state;
+                }
+              })
+            );
+          } else if (HubSkinService.isEnabled()) {
+            // Skin-hosted cap - query through skin
+            const viewport = HubSkinService.getViewportForSlot(id);
+            if (viewport) {
+              capStatePromises.push(
+                queryCapStateThroughSkin(id, viewport).then(result => {
+                  if (result.state) {
+                    slotState.capState = result.state;
+                  }
+                })
+              );
+            }
+          }
+        }
+
+        state.slots.push(slotState);
+      }
+
+      // Wait for all cap state queries
+      if (capStatePromises.length > 0) {
+        await Promise.all(capStatePromises);
+      }
+
+      // Fetch missing sources
+      if (includeSources && fetchMissingSources) {
+        const fetchPromises = state.slots
+          .filter(s => s._needsFetch)
+          .map(async (slotState) => {
+            const source = await fetchSourceForUrl(slotState._needsFetch);
+            if (source) {
+              slotState.sourceHtml = source;
+              // Also cache it in the slot
+              const s = slots.get(slotState.slotId);
+              if (s) s.capturedSource = source;
+            }
+            delete slotState._needsFetch;
+          });
+
+        if (fetchPromises.length > 0) {
+          await Promise.all(fetchPromises);
+        }
+      }
+
+      // Clean up any remaining _needsFetch markers
+      state.slots.forEach(s => delete s._needsFetch);
+
+      return state;
+    }
+
+    // Export state to JSON string
+    async function exportToJson(options = {}) {
+      const state = await getWorkspaceState(options);
+      return JSON.stringify(state, null, 2);
+    }
+
+    // Quick export (no cap queries, no source fetch - fast)
+    function getQuickState() {
+      const state = {
+        version: 1,
+        created: new Date().toISOString(),
+        hub: { name: 'platokit', version: '1.0.0', workspaceId: hubState.workspaceId },
+        slots: []
+      };
+
+      for (const [id, s] of slots) {
+        if (s.status === 'empty') continue;
+        state.slots.push({
+          slotId: id,
+          loadInfo: { type: s.type, inputValue: s.inputValue, source: s.source },
+          registration: { name: s.capName, version: s.capVersion, methods: s.methods },
+          status: s.status,
+          hasSource: !!s.capturedSource
+        });
+      }
+
+      return state;
+    }
+
+    return {
+      getWorkspaceState,
+      exportToJson,
+      getQuickState,
+      handleStateResponse,
+      getHubStorage,
+      fetchSourceForUrl
+    };
+  })();
+  // END HUB STATE SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: ALGORITHM BANK - Skin Service (View Layer Management)
+  // --------------------------------------------------------------------------
+  // EXTRACTED TO: js/skin_manager.js (loaded conditionally when ?skin=true)
+  // See: plan_reskin.md, file_size_review.md
+  // ==========================================================================
+  const HubSkinService = (function() {
+    let skinFrame = null;
+    let skinReady = false;
+    let skinEnabled = false;
+    const viewportSlotMap = new Map();
+    const slotViewportMap = new Map();
+    // O: Cap catalog v2 - rich metadata per tool
+    const CAP_CATALOG = {
+      'help':    { url: 'caps/help/help_hotline_kit.html',           label: 'Help',   emoji: '\u{1F4CB}', role: 'primary', desc: 'Help request form' },
+      'llm':     { url: 'caps/chats/chat_gateway-allenai_kit.html', label: 'LLM',    emoji: '\u{1F916}', role: 'service', desc: 'AI chat gateway' },
+      'search':  { url: 'caps/base_pages/search_main_kit.html',         label: 'Search', emoji: '\u{1F50D}', role: 'primary', desc: 'Cap discovery' },
+      'mesh':    { url: 'caps/chat_video/chat_video_kit.html',        label: 'Video Call', emoji: '\u{1F4F9}', role: 'service', desc: 'P2P video call' },
+      'export':  { url: 'platokit_export_ui.html',                   label: 'Export', emoji: '\u{1F4E6}', role: 'primary', desc: 'Workspace export' },
+      'msg':     { url: 'caps/base_pages/msg_send_kit.html',         label: 'Msg',    emoji: '\u{1F4AC}', role: 'primary', desc: 'Message broadcaster' },
+      'storage': { url: 'caps/base_pages/store_local_kit.html',     label: 'Store',  emoji: '\u{1F4BE}', role: 'service', desc: 'Storage viewer' }
+    };
+
+    // O: Skin load sets - per-set viewport mapping
+    const SKIN_LOAD_SETS = {
+      'help_full': { viewports: { vp1: 'help' }, hidden: ['llm', 'mesh'], desc: 'Help form with LLM + video call' },
+      'llm_demo':  { viewports: { vp1: 'llm', vp2: 'msg' }, hidden: [], desc: 'LLM chat with message broadcaster' },
+      'search':    { viewports: { vp1: 'search' }, hidden: [], desc: 'Cap discovery search' },
+      'video_llm': { viewports: { vp1: 'mesh', vp2: 'llm' }, hidden: [], desc: 'Video call with LLM' },
+      'video_chat':{ viewports: { vp1: 'mesh' }, hidden: [], desc: 'P2P video call' },
+      'help':      { viewports: { vp1: 'help' }, hidden: [], desc: 'Help request form' },
+      'help_chat': { viewports: { vp1: 'help', vp2: 'mesh' }, hidden: [], desc: 'Help with video call' },
+      'llm_chat':  { viewports: { vp1: 'llm' }, hidden: [], desc: 'LLM chat gateway' },
+      'skin_demo': { viewports: { vp1: 'llm', vp2: 'msg' }, hidden: [], desc: 'Demo caps for skin mode' },
+      'export':    { viewports: { vp1: 'export' }, hidden: [], desc: 'Workspace export UI' }
+    };
+
+    // O: Track which tool IDs are currently loaded (for status tracking)
+    const loadedTools = new Map();
+
+    // O: Internal bus subscriptions for tool status bridge
+    const busStatusHandlers = [];
+
+    // Resolve relative URL against hub's base (skin iframe has different base path)
+    const hubBase = location.href.replace(/[^/\\]*$/, '');
+    function resolveCapUrl(url) {
+      if (!url || url.startsWith('http') || url.startsWith('file:') || url.startsWith('/')) return url;
+      return hubBase + url;
+    }
+
+    function spawn(skinUrl) {
+      if (skinFrame) return;
+      skinFrame = document.createElement('iframe');
+      skinFrame.id = 'skin-frame';
+      skinFrame.src = skinUrl || PlatoKitParams.getSkinUrl();
+      skinFrame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:1000;background:#fff;';
+      skinFrame.sandbox = 'allow-scripts allow-same-origin allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox';
+      document.body.appendChild(skinFrame);
+      // Add drag listeners to skin iframe
+      skinFrame.addEventListener('dragenter', e => {
+        e.preventDefault();
+        if (!dragOverlay) { createDragOverlay(); dragCounter = 1; }
+      }, true);
+      skinFrame.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragOverlay) { createDragOverlay(); dragCounter = 1; }
+      }, true);
+      ['debug', 'dev-toolbar', 'drop-zone', 'caps', 'slots', 'log'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      document.querySelectorAll('h3, h4').forEach(el => el.style.display = 'none');
+      skinEnabled = true;
+      log('platokit: skin spawned');
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && skinEnabled && skinFrame?.style.display === 'none') show();
+      });
+      skinFrame.onload = () => log('platokit: skin iframe loaded');
+      return skinFrame;
+    }
+
+    function hide() {
+      if (skinFrame) skinFrame.style.display = 'none';
+      ['debug', 'dev-toolbar', 'drop-zone', 'caps', 'slots', 'log'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
+      document.querySelectorAll('h3, h4').forEach(el => el.style.display = '');
+      let btn = document.getElementById('back-to-skin-btn');
+      if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'back-to-skin-btn';
+        btn.textContent = '← Back to PlatoKit (Esc)';
+        btn.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;padding:8px 16px;background:#111;color:#0f0;border:1px solid #0f0;border-radius:4px;cursor:pointer;font-family:monospace;font-size:12px;';
+        btn.onclick = () => show();
+        document.body.appendChild(btn);
+      }
+      btn.style.display = '';
+      log('platokit: skin hidden');
+    }
+
+    function show() {
+      if (skinFrame) skinFrame.style.display = '';
+      ['debug', 'dev-toolbar', 'drop-zone', 'caps', 'slots', 'log'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      document.querySelectorAll('h3, h4').forEach(el => el.style.display = 'none');
+      const btn = document.getElementById('back-to-skin-btn');
+      if (btn) btn.style.display = 'none';
+      log('platokit: skin shown');
+    }
+
+    function toggle() {
+      if (!skinFrame) return;
+      skinFrame.style.display === 'none' ? show() : hide();
+    }
+
+    function sendToSkin(component, data) {
+      if (!skinFrame?.contentWindow) { log('platokit: skin not ready'); return false; }
+      skinFrame.contentWindow.postMessage({ kind: 'skin_render', v: 1, payload: { component, ...data } }, '*');
+      return true;
+    }
+
+    function handleAction(payload) {
+      const action = payload.action;
+      log(`platokit: <- skin_action(${action})`);
+      switch (action) {
+        case 'ready': skinReady = true; sendInitialState(); break;
+        case 'load_cap': loadCapForViewport(payload.viewport, payload.capType, payload.capUrl, payload.fileContent, payload.fileName); break;
+        case 'close_cap': {
+          const cvp = payload.viewport;
+          const csid = viewportSlotMap.get(cvp);
+          if (csid !== undefined) {
+            for (const [tid, info] of loadedTools) { if (info.slotId === csid) { info.status = 'idle'; info.viewport = null; sendToSkin('tool_status', { toolId: tid, status: 'idle', detail: '' }); break; } }
+            viewportSlotMap.delete(cvp); slotViewportMap.delete(csid);
+          }
+          sendToSkin('viewport_update', { viewport: cvp, status: 'empty', capName: null });
+          log(`platokit: closed cap in ${cvp}`);
+          break;
+        }
+        case 'toggle_debug': toggle(); break;
+        case 'tile_action': handleTileAction(payload.slotId, payload.tileAction); break;
+        case 'nav_click': handleNavClick(payload.item); break;
+        case 'run_click': log('platokit: Run clicked (not implemented)'); break;
+        case 'request_state': sendCurrentState(); break;
+        case 'relay_cap_message': handleCapRelay(payload.viewport, payload.innerMessage); break;
+        case 'tool_click': handleToolClick(payload.toolId); break;
+        default: log(`platokit: unknown skin action: ${action}`);
+      }
+    }
+
+    function sendInitialState() {
+      sendToSkin('tools', {
+        items: Object.entries(CAP_CATALOG).map(([id, entry]) => ({
+          id, label: entry.label, emoji: entry.emoji, url: entry.url,
+          role: entry.role, desc: entry.desc,
+          status: loadedTools.has(id) ? loadedTools.get(id).status : 'idle',
+          name: entry.label, available: true
+        }))
+      });
+      sendCurrentState();
+      setupBusStatusBridge();
+      log('platokit: sent initial state to skin');
+    }
+
+    function sendCurrentState() {
+      const tileData = [];
+      for (const [id, s] of slots) {
+        if (s.status === 'empty') continue;
+        tileData.push({ slotId: id, name: s.capName || s.source || `Tile ${id + 1}`, status: s.status, type: s.type, methods: s.methods || [] });
+      }
+      sendToSkin('tiles', { items: tileData });
+    }
+
+    // Find a slot that already has this URL loaded
+    function findSlotByUrl(url) {
+      for (const [id, s] of slots) {
+        if (s.status === 'empty') continue;
+        if (s.inputValue === url || s.source === url.split('/').pop()) return id;
+      }
+      return null;
+    }
+
+    // Find the CAP_CATALOG key for a given URL
+    function findToolIdByUrl(url) {
+      for (const [id, entry] of Object.entries(CAP_CATALOG)) {
+        if (entry.url === url) return id;
+      }
+      return null;
+    }
+
+    // Track tool loading status
+    function trackToolLoad(toolId, slotId, viewport, status) {
+      loadedTools.set(toolId, { slotId, viewport, status });
+      sendToSkin('tool_status', { toolId, status, detail: '' });
+    }
+
+    // Update tool status from slot events
+    function updateToolStatusFromSlot(slotId, status, detail) {
+      for (const [toolId, info] of loadedTools) {
+        if (info.slotId === slotId) {
+          info.status = status;
+          sendToSkin('tool_status', { toolId, status, detail: detail || '' });
+          return;
+        }
+      }
+    }
+
+    // Handle tool circle click (load to first empty viewport)
+    function handleToolClick(toolId) {
+      const entry = CAP_CATALOG[toolId];
+      if (!entry) { log(`platokit: tool_click unknown: ${toolId}`); return; }
+      const viewports = ['vp1', 'vp2', 'vp3'];
+      const emptyVps = viewports.filter(vp => !viewportSlotMap.has(vp));
+      // Always keep at least one viewport empty at bottom
+      if (emptyVps.length <= 1) { sendToSkin('toast', { message: 'Keep at least one viewport open', type: 'info' }); return; }
+      loadCapForViewport(emptyVps[0], toolId, entry.url);
+    }
+
+    function loadCapForViewport(viewport, capType, capUrl, fileContent, fileName) {
+      const catalogEntry = CAP_CATALOG[capType];
+      const url = capUrl || (catalogEntry ? catalogEntry.url : null);
+
+      if (!fileContent && !url) { log(`platokit: unknown cap type: ${capType}`); sendToSkin('toast', { message: `Unknown cap type: ${capType}`, type: 'error' }); return; }
+
+      // Attach-existing: check if URL is already loaded
+      if (!fileContent && url) {
+        const existingSlotId = findSlotByUrl(url);
+        if (existingSlotId !== null && !slotViewportMap.has(existingSlotId)) {
+          viewportSlotMap.set(viewport, existingSlotId);
+          slotViewportMap.set(existingSlotId, viewport);
+          const s = slots.get(existingSlotId);
+          const toolId = capType || findToolIdByUrl(url);
+          sendToSkin('viewport_iframe', { viewport, slotId: existingSlotId, src: resolveCapUrl(url), capName: s.capName || url.split('/').pop(), capType: toolId });
+          if (toolId) trackToolLoad(toolId, existingSlotId, viewport, s.status || 'loading');
+          log(`platokit: attached existing slot ${existingSlotId} to ${viewport} (${url})`);
+          sendToSkin('viewport_update', { viewport, slotId: existingSlotId, status: s.status, capName: s.capName });
+          setTimeout(() => sendCurrentState(), 200);
+          return;
+        }
+      }
+
+      let targetId = null;
+      for (const [id, s] of slots) { if (s.status === 'empty') { targetId = id; break; } }
+      if (targetId === null) targetId = addSlot();
+      viewportSlotMap.set(viewport, targetId);
+      slotViewportMap.set(targetId, viewport);
+
+      const toolId = capType || findToolIdByUrl(url);
+      if (toolId) trackToolLoad(toolId, targetId, viewport, 'loading');
+
+      if (fileContent) {
+        if (skinEnabled && skinFrame) {
+          sendToSkin('viewport_iframe', { viewport, slotId: targetId, srcdoc: fileContent, capName: fileName || 'dropped.html' });
+          const s = slots.get(targetId);
+          s.type = 'file'; s.source = fileName; s.status = 'loading'; s.capturedSource = fileContent;
+        } else {
+          loadContent(targetId, fileContent, 'file', fileName || 'dropped.html');
+        }
+        log(`platokit: loaded file ${fileName} for ${viewport}`);
+        setTimeout(() => sendCurrentState(), 500);
+        return;
+      }
+
+      if (skinEnabled && skinFrame) {
+        sendToSkin('viewport_iframe', { viewport, slotId: targetId, src: resolveCapUrl(url), capName: (catalogEntry ? catalogEntry.label : url.split('/').pop()), capType: toolId });
+        const s = slots.get(targetId);
+        s.type = 'url'; s.source = url.split('/').pop(); s.inputValue = url; s.status = 'loading';
+        if (url.startsWith('http')) { fetch(url).then(r => r.ok ? r.text() : null).then(html => { if (html) s.capturedSource = html; }).catch(() => {}); }
+      } else {
+        const input = document.querySelector(`[data-id="${targetId}"]`);
+        if (input) { input.value = url; loadSlot(targetId); }
+      }
+      log(`platokit: loaded cap ${capType} (${url}) for ${viewport}`);
+      setTimeout(() => sendCurrentState(), 500);
+    }
+
+    // Load a skin load set: viewport caps + hidden caps
+    function loadSetForSkin(setName) {
+      const skinSet = SKIN_LOAD_SETS[setName];
+      if (!skinSet) { log(`platokit: unknown skin load set: ${setName}`); return false; }
+      log(`platokit: loading skin set "${setName}"`);
+      for (const [vpId, toolId] of Object.entries(skinSet.viewports)) {
+        const entry = CAP_CATALOG[toolId];
+        if (!entry) { log(`platokit: skin set "${setName}" unknown tool: ${toolId}`); continue; }
+        loadCapForViewport(vpId, toolId, entry.url);
+      }
+      skinSet.hidden.forEach((toolId, i) => {
+        const entry = CAP_CATALOG[toolId];
+        if (!entry) { log(`platokit: skin set "${setName}" hidden unknown: ${toolId}`); return; }
+        setTimeout(() => {
+          let targetId = null;
+          for (const [id, s] of slots) { if (s.status === 'empty') { targetId = id; break; } }
+          if (targetId === null) targetId = addSlot();
+          const input = document.querySelector(`[data-id="${targetId}"]`);
+          if (input) { input.value = entry.url; loadSlot(targetId); }
+          trackToolLoad(toolId, targetId, null, 'loading');
+          log(`platokit: loaded hidden cap ${toolId} (${entry.url}) in slot ${targetId}`);
+        }, (i + 1) * 100);
+      });
+      return true;
+    }
+
+    // Bus-driven tool status bridge
+    function setupBusStatusBridge() {
+      if (busStatusHandlers.length > 0) return; // Already set up
+      const statusTopics = { 'llm_status': 'llm', 'chat_status': 'mesh', 'help_status': 'help', 'search_status': 'search' };
+      for (const [topic, toolId] of Object.entries(statusTopics)) {
+        const proxySource = {
+          postMessage: function(msg) {
+            if (msg.kind === 'bus_event' && msg.payload) {
+              const data = msg.payload.data || {};
+              const status = data.status || 'loading';
+              const detail = data.detail || data.message || '';
+              sendToSkin('tool_status', { toolId, status, detail });
+              if (loadedTools.has(toolId)) loadedTools.get(toolId).status = status;
+              log(`platokit: bus bridge ${topic} -> tool_status(${toolId}, ${status})`);
+            }
+          }
+        };
+        const internalSlotId = -100 - busStatusHandlers.length;
+        HubEventBusService.subscribe(proxySource, internalSlotId, topic);
+        busStatusHandlers.push({ topic, slotId: internalSlotId });
+      }
+      log('platokit: bus status bridge active');
+    }
+
+    function handleTileAction(slotId, tileAction) {
+      switch (tileAction) {
+        case 'ping': pingSlot(slotId); break;
+        case 'close': removeSlot(slotId); sendCurrentState(); break;
+        default: log(`platokit: unknown tile action: ${tileAction}`);
+      }
+    }
+
+    function handleNavClick(item) {
+      switch (item) {
+        case 'new_prompt': addSlot(); sendCurrentState(); break;
+        case 'my_library': log('platokit: My Library clicked (not implemented)'); break;
+        default: log(`platokit: nav click: ${item}`);
+      }
+    }
+
+    function handleCapRelay(viewport, inner) {
+      const slotId = viewportSlotMap.get(viewport);
+      if (slotId === undefined) { log(`platokit: cap relay from unknown viewport ${viewport}`); return; }
+      const s = slots.get(slotId);
+      if (!s) { log(`platokit: cap relay - no slot ${slotId}`); return; }
+      log(`platokit: <- cap[${viewport}] ${inner.kind || '?'}`);
+
+      switch (inner.kind) {
+        case 'register':
+          s.methods = inner.payload?.methods || inner.methods || [];
+          s.capName = inner.payload?.name || inner.name || null;
+          s.capVersion = inner.payload?.version || inner.version || null;
+          s.status = 'ready';
+          log(`cap[${viewport}]: registered ${s.capName || '?'}@${s.capVersion || '?'} [${s.methods.join(',')}]`);
+          sendToSkin('cap_message', { viewport, message: { kind: 'registered', v: 1, payload: { success: true, name: s.capName || `vp-${viewport}`, hubId: hubState.workspaceId } } });
+          updateTileTitle(slotId); updateCapsUI(); sendCurrentState();
+          sendToSkin('viewport_update', { viewport, slotId, status: 'ready', capName: s.capName });
+          updateToolStatusFromSlot(slotId, 'ready', s.capName);
+          break;
+        case 'pong': log(`cap[${viewport}]: pong`); break;
+        case 'ready': case 'iframe_ready':
+          s.status = 'ready'; log(`cap[${viewport}]: ready`);
+          updateTileTitle(slotId); updateCapsUI();
+          sendToSkin('viewport_update', { viewport, slotId, status: 'ready' });
+          updateToolStatusFromSlot(slotId, 'ready', '');
+          break;
+        case 'state_response':
+          if (inner.id && HubStateService.handleStateResponse(inner.id, inner.payload || {})) log(`cap[${viewport}]: state_response`);
+          break;
+        case 'store':
+          const storePayload = inner.payload || {};
+          const storeResult = HubStoreService.handle(storePayload.op, storePayload.key, storePayload.value);
+          log(`cap[${viewport}]: store.${storePayload.op}(${storePayload.key})`);
+          sendToSkin('cap_message', { viewport, message: { kind: 'store_response', v: 1, id: inner.id, payload: storeResult } });
+          break;
+        case 'http':
+          const httpPayload = inner.payload || {};
+          log(`cap[${viewport}]: http.${httpPayload.method || 'GET'} ${httpPayload.url || '?'}`);
+          HubHttpService.handle(httpPayload).then(httpResult => {
+            sendToSkin('cap_message', { viewport, message: { kind: 'http_response', v: 1, id: inner.id, payload: httpResult } });
+          });
+          break;
+        case 'capabilities':
+          const capsResult = HubCapabilitiesService.getCapabilities();
+          log(`cap[${viewport}]: capabilities`);
+          sendToSkin('cap_message', { viewport, message: { kind: 'capabilities_response', v: 1, id: inner.id, payload: capsResult } });
+          break;
+        case 'bus_subscribe':
+          const subTopic = inner.payload?.topic;
+          if (subTopic) {
+            const proxySource = { viewport, postMessage: (msg) => sendToSkin('cap_message', { viewport, message: msg }) };
+            const subResult = HubEventBusService.subscribe(proxySource, slotId, subTopic);
+            log(`cap[${viewport}]: bus_subscribe(${subTopic})`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'bus_subscribe_response', v: 1, id: inner.id, payload: subResult } });
+          }
+          break;
+        case 'bus_unsubscribe':
+          const unsubTopic = inner.payload?.topic;
+          if (unsubTopic) {
+            const unsubResult = HubEventBusService.unsubscribe({ viewport }, slotId, unsubTopic);
+            log(`cap[${viewport}]: bus_unsubscribe(${unsubTopic})`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'bus_unsubscribe_response', v: 1, id: inner.id, payload: unsubResult } });
+          }
+          break;
+        case 'bus_publish':
+          const pubTopic = inner.payload?.topic;
+          if (pubTopic) {
+            const pubResult = HubEventBusService.publish(slotId, pubTopic, inner.payload?.data);
+            log(`cap[${viewport}]: bus_publish(${pubTopic}) -> ${pubResult.delivered} delivered`);
+          }
+          break;
+        case 'bus_broadcast':
+          const bcastResult = HubEventBusService.broadcast(slotId, inner.payload?.data);
+          log(`cap[${viewport}]: bus_broadcast -> ${bcastResult.delivered} delivered`);
+          break;
+        case 'bus_list_topics':
+          const topicsList = HubEventBusService.listTopics();
+          log(`cap[${viewport}]: bus_list_topics (${topicsList.length} topics)`);
+          sendToSkin('cap_message', { viewport, message: { kind: 'bus_list_topics_response', v: 1, id: inner.id, payload: { topics: topicsList } } });
+          break;
+        case 'open_tab':
+          const tabUrl = inner.payload?.url;
+          const tabRequestId = inner.id || ('tab_' + Date.now());
+          if (tabUrl) {
+            const proxySource = { viewport, postMessage: (msg) => sendToSkin('cap_message', { viewport, message: msg }) };
+            const tabResult = HubTabRelayService.openTab(proxySource, slotId, tabRequestId, tabUrl, inner.payload);
+            log(`cap[${viewport}]: open_tab(${tabUrl}) -> ${tabResult.success ? 'opened' : tabResult.error}`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'open_tab_response', v: 1, id: tabRequestId, payload: tabResult } });
+          }
+          break;
+        case 'response': log(`cap[${viewport}]: response`); break;
+        case 'error':
+          log(`cap[${viewport}]: error - ${inner.payload?.message || inner.error?.message || '?'}`);
+          updateToolStatusFromSlot(slotId, 'error', inner.payload?.message || 'Error');
+          break;
+        case 'workspace_state_request':
+          log(`cap[${viewport}]: workspace_state_request`);
+          const wsOptions = inner.options || {};
+          HubStateService.getWorkspaceState({
+            includeStorage: wsOptions.includeStorage !== false,
+            includeSources: wsOptions.includeSources !== false,
+            includeCapStates: wsOptions.includeCapStates !== false,
+            fetchMissingSources: wsOptions.fetchMissingSources !== false
+          }).then(state => {
+            log(`cap[${viewport}]: -> workspace_state_response (${state.slots.length} slots)`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'workspace_state_response', v: 1, id: inner.id, payload: state } });
+          }).catch(err => {
+            log(`cap[${viewport}]: -> workspace_state_response error: ${err.message}`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'workspace_state_response', v: 1, id: inner.id, payload: null, error: err.message } });
+          });
+          break;
+        case 'hub_source_request':
+          log(`cap[${viewport}]: hub_source_request`);
+          if (location.protocol === 'file:' || location.origin === 'null') {
+            const doctype = document.doctype ? `<!DOCTYPE ${document.doctype.name}${document.doctype.publicId ? ` PUBLIC "${document.doctype.publicId}"` : ''}${document.doctype.systemId ? ` "${document.doctype.systemId}"` : ''}>` : '<!DOCTYPE html>';
+            const html = doctype + '\n' + document.documentElement.outerHTML;
+            log(`cap[${viewport}]: -> hub_source_response (${html.length} bytes, DOM)`);
+            sendToSkin('cap_message', { viewport, message: { kind: 'hub_source_response', v: 1, id: inner.id, payload: { html, fromDOM: true } } });
+          } else {
+            fetch('platokit.html').then(r => r.ok ? r.text() : Promise.reject('HTTP ' + r.status)).then(html => {
+              log(`cap[${viewport}]: -> hub_source_response (${html.length} bytes)`);
+              sendToSkin('cap_message', { viewport, message: { kind: 'hub_source_response', v: 1, id: inner.id, payload: { html } } });
+            }).catch(() => {
+              const doctype = document.doctype ? `<!DOCTYPE ${document.doctype.name}>` : '<!DOCTYPE html>';
+              const html = doctype + '\n' + document.documentElement.outerHTML;
+              sendToSkin('cap_message', { viewport, message: { kind: 'hub_source_response', v: 1, id: inner.id, payload: { html, fromDOM: true } } });
+            });
+          }
+          break;
+        default: log(`cap[${viewport}]: ${inner.kind} (unhandled)`);
+      }
+    }
+
+    function isEnabled() { return skinEnabled; }
+    function isReady() { return skinReady; }
+    function getFrame() { return skinFrame; }
+    function getSlotForViewport(viewport) { return viewportSlotMap.get(viewport); }
+    function getViewportForSlot(slotId) { return slotViewportMap.get(slotId); }
+
+    return { spawn, hide, show, toggle, sendToSkin, handleAction, handleCapRelay, sendCurrentState, loadSetForSkin, loadCapForViewport, isEnabled, isReady, getFrame, getSlotForViewport, getViewportForSlot, CAP_CATALOG, SKIN_LOAD_SETS };
+  })();
+  // END HUB SKIN SERVICE
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: CONFIGURATION - Load Sets (Capability Bundles)
+  // --------------------------------------------------------------------------
+  // O: Static map of named capability groups
+  // A: (accessed via PlatoKit.loadSet)
+  // C: Paths must be valid relative URLs
+  //
+  // Classical: Configuration Pattern, Factory Pattern
+  // ==========================================================================
+  const LOAD_SETS = {
+    'samples_basic': ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html'],
+    'samples_all': ['caps/caps_samples/sample_ping.html', 'caps/caps_samples/sample_echo.html', 'caps/caps_samples/sample_storage.html', 'caps/caps_samples/sample_clock.html', 'caps/caps_samples/sample_counter.html'],
+    'test_runner': ['caps/caps_samples/test_runner.html'],
+    'storage_test': ['caps/base_pages/store_local_kit.html', 'caps/caps_samples/sample_ping.html'],
+    'input_list': ['caps/caps_samples/input_userlist.html'],
+    'submit_challenge': ['caps/caps_samples/input_submit-challenge.html'],
+    'llm_chat': ['caps/chats/chat_gateway-allenai_kit.html'],
+    'llm_demo': ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'],
+    'messaging': ['caps/base_pages/msg_send_kit.html', 'caps/caps_samples/sample_ping.html'],
+    'llm_gateway': ['caps/chats/chat_gateway-allenai_kit.html'],  // Tab relay auth demo
+    'export': ['platokit_export_ui.html'],  // Workspace export UI
+    'chatskit': ['caps/chats/chat_gateway-allenai_kit.html', 'platokit_export_ui.html'],  // Full chats kit with export
+    'skin_demo': ['caps/chats/chat_gateway-allenai_kit.html', 'caps/base_pages/msg_send_kit.html'],  // Demo caps for skin mode
+    'search': ['caps/base_pages/search_main_kit.html'],
+    'video_chat': ['caps/chat_video/chat_video_kit.html'],
+    'video_llm': ['caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html'],
+    'help': ['caps/help/help_hotline_kit.html'],
+    'help_chat': ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html'],
+    'help_full': ['caps/help/help_hotline_kit.html', 'caps/chat_video/chat_video_kit.html', 'caps/chats/chat_gateway-allenai_kit.html']
+  };
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: WORKSPACE STATE (Workspace.O - Core Objects)
+  // --------------------------------------------------------------------------
+  // These are the primary objects managed by the workspace.
+  // All transforms operate on or reference these objects.
+  // ==========================================================================
+
+  // O: Capability registry - slotId → { source, type, methods, status, inputValue }
+  // Each entry is a loaded OAC tuple (capability)
+  const slots = new Map();
+
+  // O: Window → slotId mapping (for message routing)
+  const frameMap = new WeakMap();
+
+  // O: ID generator state
+  let nextSlotId = 0;
+
+  // O: Workspace runtime context
+  const hubState = {
+    userId: 'user_' + Math.random().toString(36).slice(2, 8),
+    workspaceId: 'ws_' + Math.random().toString(36).slice(2, 8),
+    cacheAvailable: false,
+    networkLevel: 'offline',
+    storageAvailable: false
+  };
+
+  // O: DOM element references (UI state)
+  const $debug = document.getElementById('debug');
+  const $capsList = document.getElementById('caps-list');
+  const $tilesList = document.getElementById('tiles-list');
+  const $slots = document.getElementById('slots');
+  const $log = document.getElementById('log');
+  const $dropZone = document.getElementById('drop-zone');
+  const $loadSetSelect = document.getElementById('load-set-select');
+  const $selfTestResult = document.getElementById('self-test-result');
+  const $sessionName = document.getElementById('session-name');
+
+  // Utilities
+  function log(msg) {
+    const ts = new Date().toISOString().slice(11, 23);
+    $log.textContent += `[${ts}] ${msg}\n`;
+    $log.scrollTop = $log.scrollHeight;
+  }
+
+  function detectCapabilities() {
+    try {
+      hubState.cacheAvailable = 'caches' in window && location.protocol !== 'file:';
+    } catch {}
+    if (navigator.onLine) hubState.networkLevel = 'internet';
+
+    // PLATOKIT: Storage test
+    const storageTest = PlatoKitStorage.test();
+    hubState.storageAvailable = storageTest.pass;
+
+    updateDebugUI();
+    updateSelfTestUI(storageTest);
+  }
+
+  function updateDebugUI() {
+    const yn = v => v ? '<span class="yes">yes</span>' : '<span class="no">no</span>';
+    const popupsEnabled = PlatoKitParams.getAllowPopups();
+    const sameOriginEnabled = PlatoKitParams.getAllowSameOrigin();
+    $debug.innerHTML = `
+      <span>cache: ${yn(hubState.cacheAvailable)}</span>
+      <span>storage: ${yn(hubState.storageAvailable)}</span>
+      <span>user: ${hubState.userId}</span>
+      <span>workspace: ${hubState.workspaceId}</span>
+      <span>network: <span class="${hubState.networkLevel === 'offline' ? 'no' : 'yes'}">${hubState.networkLevel}</span></span>
+      <span>protocol: ${location.protocol}</span>
+      ${popupsEnabled ? '<span class="warn">⚠️ POPUPS</span>' : ''}
+      ${sameOriginEnabled ? '<span class="warn">⚠️ SAME-ORIGIN</span>' : ''}
+    `;
+  }
+
+  // PLATOKIT: Self-test UI
+  function updateSelfTestUI(result) {
+    if (result.pass) {
+      const persist = result.persistMsg ? ` | ${result.persistMsg}` : '';
+      $selfTestResult.innerHTML = `<span class="pass">${result.msg}</span>${persist}`;
+    } else {
+      $selfTestResult.innerHTML = `<span class="fail">${result.msg}</span>`;
+    }
+  }
+
+  // PLATOKIT: Populate load sets dropdown
+  function populateLoadSets() {
+    for (const name of Object.keys(LOAD_SETS)) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name + ' (' + LOAD_SETS[name].length + ')';
+      $loadSetSelect.appendChild(opt);
+    }
+  }
+
+  function updateCapsUI() {
+    const allCaps = new Set();
+    const loadedTiles = [];
+
+    for (const [id, s] of slots) {
+      if (s.status === 'empty') continue;
+      loadedTiles.push({ id, ...s });
+      s.methods.forEach(m => allCaps.add(m));
+    }
+
+    $capsList.textContent = allCaps.size > 0 ? [...allCaps].join(', ') : '(none)';
+    $capsList.style.color = allCaps.size > 0 ? '#ff0' : '#555';
+
+    if (loadedTiles.length > 0) {
+      $tilesList.innerHTML = loadedTiles.map(t => {
+        const caps = t.methods.length ? ` [${t.methods.join(',')}]` : '';
+        const statusColor = t.status === 'ready' ? '#0f0' : t.status === 'error' ? '#f44' : '#ff0';
+        return `<span onclick="pingSlot(${t.id})" style="display:inline-block;background:#030;border:1px solid ${statusColor};padding:2px 6px;margin:2px;font-size:10px;cursor:pointer;color:${statusColor}">` +
+          `Tile${t.id + 1}: ${t.type || '?'} ${t.source || ''}${caps}</span>`;
+      }).join('');
+    } else {
+      $tilesList.innerHTML = '<span style="color:#555">(none)</span>';
+    }
+  }
+
+  function updateTileTitle(id) {
+    const s = slots.get(id);
+    const $title = document.getElementById('title-' + id);
+    if (!s || !$title) return;
+
+    const typeStr = s.type || 'empty';
+    const sourceStr = s.source || '';
+    const capsStr = s.methods.length ? s.methods.join(', ') : '';
+    const errorStr = s.errorMsg || '';
+
+    $title.querySelector('.info').innerHTML =
+      `<b>Tile ${id + 1}</b> ` +
+      `<span class="type">${typeStr}</span>` +
+      (sourceStr ? ` <span class="source">${sourceStr}</span>` : '') +
+      (capsStr ? ` <span class="caps">[${capsStr}]</span>` : '') +
+      (errorStr ? ` <span style="color:#f44">[${errorStr}]</span>` : '');
+
+    const tile = document.getElementById('tile-' + id);
+    tile.className = 'tile ' + (s.status || 'empty');
+  }
+
+  // Slot management
+  function addSlot() {
+    const id = nextSlotId++;
+    slots.set(id, { source: null, type: null, methods: [], status: 'empty', inputValue: '', capturedSource: null, capName: null, capVersion: null });
+
+    const div = document.createElement('div');
+    div.className = 'tile';
+    div.id = 'tile-' + id;
+    div.innerHTML = `
+      <div class="tile-title" id="title-${id}">
+        <span class="info"><b>Tile ${id + 1}</b> <span class="type">(empty)</span></span>
+        <button class="close" onclick="removeSlot(${id})">X</button>
+      </div>
+      <div class="tile-controls">
+        <input class="tile-input" placeholder="URL / drop / paste" data-id="${id}">
+        <button onclick="browseFile(${id})">File</button>
+        <button onclick="loadSlot(${id})">Load</button>
+        <button onclick="pingSlot(${id})">Ping</button>
+        <input type="file" id="file-${id}" accept=".html,.htm" style="display:none" onchange="handleFileSelect(${id},this)">
+      </div>
+      <iframe id="frame-${id}" sandbox="allow-scripts${PlatoKitParams.getAllowModals() ? ' allow-modals' : ''}${PlatoKitParams.getAllowDownloads() ? ' allow-downloads' : ''}${PlatoKitParams.getAllowPopups() ? ' allow-popups allow-popups-to-escape-sandbox' : ''}${PlatoKitParams.getAllowSameOrigin() ? ' allow-same-origin' : ''}"></iframe>
+    `;
+    $slots.appendChild(div);
+    setupInput(div.querySelector('.tile-input'), id);
+    // Add drag listeners to iframe to catch drags that start over iframe
+    const iframe = div.querySelector('iframe');
+    if (iframe) {
+      iframe.addEventListener('dragenter', e => {
+        e.preventDefault();
+        if (!dragOverlay) { createDragOverlay(); dragCounter = 1; }
+      }, true);
+      iframe.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!dragOverlay) { createDragOverlay(); dragCounter = 1; }
+      }, true);
+    }
+    return id;
+  }
+
+  function setupInput(input, id) {
+    // Track input value for state persistence
+    input.oninput = () => {
+      const s = slots.get(id);
+      if (s) s.inputValue = input.value;
+    };
+
+    input.ondragover = e => { e.preventDefault(); input.classList.add('drag-over'); };
+    input.ondragleave = () => input.classList.remove('drag-over');
+    input.ondrop = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.classList.remove('drag-over');
+      handleDrop(e, id);
+    };
+    input.onpaste = e => {
+      const html = e.clipboardData.getData('text/html');
+      const text = e.clipboardData.getData('text/plain');
+      if (html && html.includes('<')) {
+        e.preventDefault();
+        loadContent(id, html, 'paste', 'html');
+      } else if (text && text.includes('<')) {
+        e.preventDefault();
+        loadContent(id, text, 'paste', 'text');
+      }
+    };
+    input.onkeydown = e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadSlot(id);
+      }
+    };
+  }
+
+  function handleDrop(e, id) {
+    // URL drop
+    if (e.dataTransfer.items) {
+      for (let item of e.dataTransfer.items) {
+        if (item.type === 'text/uri-list') {
+          item.getAsString(url => {
+            const input = document.querySelector(`[data-id="${id}"]`);
+            if (input) input.value = url;
+            loadSlot(id);
+          });
+          return;
+        }
+      }
+    }
+
+    // File drop
+    if (e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+        const reader = new FileReader();
+        reader.onload = evt => loadContent(id, evt.target.result, 'file', file.name);
+        reader.readAsText(file);
+      }
+    }
+  }
+
+  // GitHub URL rewriting (real GitHub + faux localhost for pre-push testing)
+  function rewriteGithub(url) {
+    // Real GitHub: blob → raw.githubusercontent.com
+    const gh = url.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+    if (gh) {
+      return {
+        raw: `https://raw.githubusercontent.com/${gh[1]}/${gh[2]}/refs/heads/${gh[3]}/${gh[4]}`,
+        name: gh[4].split('/').pop()
+      };
+    }
+    // Faux local GitHub: localhost blob → localhost raw (for pre-push testing)
+    const local = url.match(/^(http:\/\/localhost:\d+)\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
+    if (local) {
+      return {
+        raw: `${local[1]}/${local[2]}/${local[3]}/raw/${local[4]}/${local[5]}`,
+        name: local[5].split('/').pop()
+      };
+    }
+    return null;
+  }
+
+  // Loading
+  window.loadSlot = function(id) {
+    const input = document.querySelector(`[data-id="${id}"]`);
+    const val = input?.value.trim();
+    if (!val) return;
+
+    const frame = document.getElementById('frame-' + id);
+    const s = slots.get(id);
+
+    // Capture inputValue for state persistence (oninput doesn't fire on programmatic set)
+    s.inputValue = val;
+
+    // GitHub blob URL -> fetch raw
+    const gh = rewriteGithub(val);
+    if (gh) {
+      log(`tile${id + 1}: fetching ${gh.name} from GitHub`);
+      s.status = 'loading';
+      s.type = 'github';
+      s.source = gh.name;
+      updateTileTitle(id);
+
+      const isHtml = /\.html?$/i.test(gh.name);
+      fetch(gh.raw)
+        .then(r => r.ok ? r.text() : Promise.reject(r.status))
+        .then(txt => {
+          if (isHtml) {
+            loadContent(id, txt, 'github', gh.name);
+          } else {
+            loadContent(id, `<pre style="margin:0;font-size:11px;background:#111;color:#0f0;overflow:auto">${txt.replace(/</g,'&lt;')}</pre>`, 'github', gh.name);
+          }
+        })
+        .catch(e => {
+          s.status = 'error';
+          log(`tile${id + 1}: fetch failed (${e})`);
+          updateTileTitle(id);
+        });
+      return;
+    }
+
+    // Inline HTML
+    if (val.startsWith('<')) {
+      loadContent(id, val, 'inline', 'html');
+      return;
+    }
+
+    // URL or file path
+    if (val.startsWith('http')) {
+      s.type = 'url';
+    } else if (val.startsWith('file:') || val.endsWith('.html') || val.endsWith('.htm')) {
+      s.type = 'file';
+    } else {
+      s.type = 'url';
+    }
+    s.source = val.split('/').pop() || val;
+    s.status = 'loading';
+    s.errorMsg = null;  // Clear any previous error
+
+    // For URL loads, try fetch first to check accessibility and show errors
+    fetch(val, { mode: 'cors' })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      })
+      .then(html => {
+        log(`tile${id + 1}: fetched OK (${Math.round(html.length/1024)}KB)`);
+        // Load via srcdoc instead of src to avoid mixed content issues
+        loadContent(id, html, s.type, s.source);
+      })
+      .catch(err => {
+        log(`tile${id + 1}: fetch FAILED - ${err.message}`);
+        log(`tile${id + 1}: (mixed content? CORS? server down?)`);
+        s.status = 'error';
+        s.errorMsg = 'CORS/fetch failed';
+        updateTileTitle(id);
+        updateCapsUI();
+      });
+
+    log(`tile${id + 1}: loading ${s.type} ${s.source} (full: ${val})`);
+    updateTileTitle(id);
+    updateCapsUI();
+    ensureEmptySlot(id);
+  };
+
+  // Sanitize HTML for safe srcdoc injection
+  // Prevents closing-script-tags in cap source from breaking the parent page parser
+  // This is a LOADER-LEVEL fix so caps don't need to worry about it
+  function sanitizeForSrcdoc(html) {
+    // Note: srcdoc itself handles this correctly, but we store capturedSource
+    // which might be used in contexts where escaping matters
+    return html;  // srcdoc handles escaping automatically
+  }
+
+  function loadContent(id, html, type, source) {
+    const frame = document.getElementById('frame-' + id);
+    const s = slots.get(id);
+    s.type = type;
+    s.source = source;
+    s.status = 'loading';
+    s.methods = [];
+    s.capturedSource = html;  // Capture source for compilation (original, unescaped)
+
+    frame.onload = () => {
+      frameMap.set(frame.contentWindow, id);
+      setTimeout(() => {
+        if (s.status === 'loading') {
+          s.status = 'ready';
+          log(`tile${id + 1}: loaded (no registration)`);
+          updateTileTitle(id);
+          updateCapsUI();
+        }
+      }, 3000);
+    };
+    // Map source window BEFORE srcdoc navigation so early cap postMessage
+    // (register/bus_subscribe) is not dropped as "unknown source".
+    try {
+      if (frame.contentWindow) frameMap.set(frame.contentWindow, id);
+    } catch (_) {}
+    frame.srcdoc = html;  // srcdoc attribute handles escaping automatically
+
+    log(`tile${id + 1}: loading ${type} ${source}`);
+    updateTileTitle(id);
+    updateCapsUI();
+    ensureEmptySlot(id);
+  }
+
+  // PLATOKIT: Load from base64
+  function loadBase64(id, b64) {
+    try {
+      const html = atob(b64);
+      loadContent(id, html, 'base64', 'inline');
+      log(`tile${id + 1}: loaded from base64`);
+    } catch (e) {
+      log(`tile${id + 1}: base64 decode error: ${e.message}`);
+    }
+  }
+
+  function ensureEmptySlot(usedId) {
+    const lastTile = $slots.lastElementChild;
+    if (lastTile && lastTile.id === 'tile-' + usedId) {
+      addSlot();
+    }
+  }
+
+  window.browseFile = function(id) {
+    document.getElementById('file-' + id).click();
+  };
+
+  window.handleFileSelect = function(id, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => loadContent(id, e.target.result, 'file', file.name);
+    reader.readAsText(file);
+  };
+
+  window.removeSlot = function(id) {
+    if (slots.size <= 1) {
+      log(`tile${id + 1}: can't remove last slot`);
+      return;
+    }
+    const tile = document.getElementById('tile-' + id);
+    const frame = document.getElementById('frame-' + id);
+    if (frame?.contentWindow) frameMap.delete(frame.contentWindow);
+    tile?.remove();
+    slots.delete(id);
+    log(`tile${id + 1}: removed`);
+    updateCapsUI();
+  };
+
+  window.pingSlot = function(id) {
+    const s = slots.get(id);
+    if (!s || s.status === 'empty') {
+      log(`tile${id + 1}: not loaded`);
+      return;
+    }
+    log(`tile${id + 1}: ping ->`);
+
+    const frame = document.getElementById('frame-' + id);
+    if (frame) {
+      // Direct hub iframe
+      frame.contentWindow.postMessage({ kind: 'ping', v: 1 }, '*');
+    } else if (HubSkinService.isEnabled()) {
+      // Skin-hosted cap
+      const viewport = HubSkinService.getViewportForSlot(id);
+      if (viewport) {
+        HubSkinService.sendToSkin('cap_message', {
+          viewport,
+          message: { kind: 'ping', v: 1 }
+        });
+      }
+    }
+  };
+
+  // CRITICAL: Prevent browser from navigating to dropped files
+  // Use full-page overlay during drag to intercept all drops
+  let dragCounter = 0;
+  let lastDragEvent = 0;
+  let dragOverlay = null;
+
+  function createDragOverlay() {
+    if (dragOverlay) return;
+    dragOverlay = document.createElement('div');
+    dragOverlay.id = 'drag-overlay';
+    dragOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:rgba(0,255,0,0.1);pointer-events:auto;cursor:copy;';
+    dragOverlay.ondragover = e => e.preventDefault();
+    document.body.appendChild(dragOverlay);
+  }
+
+  function removeDragOverlay() {
+    if (dragOverlay) {
+      dragOverlay.remove();
+      dragOverlay = null;
+    }
+    dragCounter = 0;
+  }
+
+  // Show overlay on drag start
+  document.addEventListener('dragenter', e => {
+    dragCounter++;
+    if (dragCounter === 1) {
+      createDragOverlay();
+    }
+  }, true);
+
+  document.addEventListener('dragleave', e => {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      removeDragOverlay();
+    }
+  }, true);
+
+  // Handle dragover - also create overlay as backup for quick drags
+  document.addEventListener('dragover', e => {
+    e.preventDefault();  // Required to allow drop
+    lastDragEvent = Date.now();
+    // Backup: create overlay if dragenter didn't fire (quick drags)
+    if (!dragOverlay) {
+      createDragOverlay();
+      dragCounter = 1;
+    }
+  }, true);
+
+  // Handle drop - find element under overlay
+  document.addEventListener('drop', e => {
+    e.preventDefault();  // Prevent browser from opening file
+    e.stopPropagation(); // Stop any further handling
+
+    // Get the actual element under the drop point (hide overlay temporarily)
+    if (dragOverlay) dragOverlay.style.display = 'none';
+    const realTarget = document.elementFromPoint(e.clientX, e.clientY);
+    if (dragOverlay) dragOverlay.style.display = '';
+
+    removeDragOverlay();
+
+    // Route to appropriate handler based on real target
+    const tile = realTarget?.closest('.tile');
+    const tileInput = realTarget?.closest('.tile-input');
+    const dropZone = realTarget?.closest('#drop-zone');
+    const iframe = realTarget?.tagName === 'IFRAME' ? realTarget : null;
+
+    if (tileInput) {
+      // Dropped on input field - extract tile ID and handle
+      const id = parseInt(tileInput.dataset.id, 10);
+      if (!isNaN(id)) handleDrop(e, id);
+      return;
+    }
+
+    if (iframe) {
+      // Dropped on iframe - find parent tile
+      const parentTile = iframe.closest('.tile');
+      if (parentTile) {
+        const tileId = parentTile.id?.replace('tile-', '');
+        const id = parseInt(tileId, 10);
+        if (!isNaN(id)) {
+          handleDrop(e, id);
+          return;
+        }
+      }
+    }
+
+    if (tile) {
+      // Dropped anywhere within tile (green box) - extract tile ID
+      const tileId = tile.id?.replace('tile-', '');
+      const id = parseInt(tileId, 10);
+      if (!isNaN(id)) {
+        handleDrop(e, id);
+        return;
+      }
+    }
+
+    if (dropZone) {
+      // Dropped on global drop zone - find empty slot
+      handleGlobalDrop(e);
+      return;
+    }
+
+    // Dropped elsewhere on page - find empty slot
+    handleGlobalDrop(e);
+  }, true);  // capture phase
+
+  // Fallback: reset drag state on mousemove if stuck
+  document.addEventListener('mousemove', () => {
+    if (dragCounter !== 0 && Date.now() - lastDragEvent > 200) {
+      removeDragOverlay();
+    }
+  });
+
+  // Fallback: reset on click if overlay got stuck
+  document.addEventListener('click', () => {
+    if (dragCounter !== 0) removeDragOverlay();
+  }, true);
+
+  // Visual drop zone
+  $dropZone.ondragover = e => {
+    e.preventDefault();
+    $dropZone.classList.add('active');
+  };
+  $dropZone.ondragleave = () => $dropZone.classList.remove('active');
+  $dropZone.ondrop = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    $dropZone.classList.remove('active');
+    handleGlobalDrop(e);
+  };
+
+  function handleGlobalDrop(e) {
+    let targetId = null;
+    for (const [id, s] of slots) {
+      if (s.status === 'empty') { targetId = id; break; }
+    }
+    if (targetId === null) targetId = addSlot();
+    handleDrop(e, targetId);
+  }
+
+  // ==========================================================================
+  // OAC: TRANSFORM KERNEL (Workspace.K - Execution Dispatcher)
+  // --------------------------------------------------------------------------
+  // This is the heart of the CCM Matrix - the kernel that receives OAC
+  // transform requests and dispatches to the appropriate algorithm under
+  // constraints.
+  //
+  // Each incoming message is: { kind, v, id, payload }
+  //   - kind: A identifier (which algorithm to invoke)
+  //   - v: C (protocol version constraint)
+  //   - id: Correlation ID (for O' → requester routing)
+  //   - payload: O (the object to transform)
+  //
+  // The switch statement is the INSTRUCTION DECODER - each case is a valid
+  // transform path. Unknown kind = invalid instruction = no transform.
+  //
+  // Classical: Command Pattern, Router Pattern, Message Dispatcher
+  // ==========================================================================
+  window.onmessage = e => {
+    const d = e.data;               // O: Incoming message object
+    if (!d || !d.kind) return;      // C: Must have kind (protocol constraint)
+
+    // TRANSFORM PATH: Tab Relay Response (from opened tabs, not iframes)
+    // OAC: O = relay payload, A = handleTabRelay, C = request_id correlation
+    // Must check BEFORE frameMap lookup since tabs aren't tracked iframes
+    if (d.kind === 'tab_relay') {
+      const relayRequestId = d.request_id;
+      const relayPayload = d.payload;
+      if (relayRequestId) {
+        const relayResult = HubTabRelayService.handleTabRelay(relayRequestId, relayPayload);
+        log(`hub: <- tab_relay(${relayRequestId}) -> ${relayResult.success ? 'routed' : relayResult.error}`);
+      }
+      return;
+    }
+
+    // TRANSFORM PATH: Load Compiled Cap (from compiled workspace wrapper)
+    // OAC: O = embedded cap HTML, A = loadContent, C = trusted (compiled source)
+    // Must check BEFORE frameMap since it comes from parent (compiled wrapper), not cap iframe
+    if (d.kind === 'load_compiled_cap') {
+      const compiledSlot = d.slot ?? findEmptySlot();
+      if (d.html) {
+        log(`hub: <- load_compiled_cap slot=${compiledSlot} name=${d.registration?.name || '?'}`);
+        loadContent(compiledSlot, d.html, 'compiled', d.registration?.name || 'compiled');
+        // Restore registration info if provided
+        const cs = slots.get(compiledSlot);
+        if (cs && d.registration) {
+          cs.capName = d.registration.name;
+          cs.capVersion = d.registration.version;
+        }
+      }
+      return;
+    }
+
+    // TRANSFORM PATH: Restore Storage (from compiled workspace wrapper)
+    // OAC: O = storage snapshot, A = restore, C = trusted (compiled source)
+    // Must check BEFORE frameMap since it comes from parent (compiled wrapper)
+    if (d.kind === 'restore_storage') {
+      if (d.storage && typeof d.storage === 'object') {
+        const keys = Object.keys(d.storage);
+        log(`hub: <- restore_storage (${keys.length} keys)`);
+        keys.forEach(key => {
+          PlatoKitStorage.set(key, d.storage[key]);
+        });
+      }
+      return;
+    }
+
+    // TRANSFORM PATH: Hub Source Request (for compilation)
+    // OAC: O = hub HTML source, A = fetch self, C = requestor is known iframe
+    if (d.kind === 'hub_source_request') {
+      const reqSource = e.source;
+      const reqId = d.id;
+      const reqSlotId = frameMap.get(reqSource);
+      const slotLabel = reqSlotId !== undefined ? `tile${reqSlotId + 1}` : 'unknown';
+
+      log(`${slotLabel}: <- hub_source_request`);
+
+      // Helper: serialize DOM as fallback (works on file:// where fetch is blocked)
+      const serializeDOM = () => {
+        const doctype = document.doctype ?
+          `<!DOCTYPE ${document.doctype.name}${document.doctype.publicId ? ` PUBLIC "${document.doctype.publicId}"` : ''}${document.doctype.systemId ? ` "${document.doctype.systemId}"` : ''}>` :
+          '<!DOCTYPE html>';
+        return doctype + '\n' + document.documentElement.outerHTML;
+      };
+
+      // Check if we're on file:// protocol (fetch will fail due to CORS)
+      if (location.protocol === 'file:' || location.origin === 'null') {
+        log(`${slotLabel}: file:// protocol detected, using DOM serialization`);
+        const html = serializeDOM();
+        log(`${slotLabel}: -> hub_source_response (${html.length} bytes, DOM)`);
+        reqSource.postMessage({
+          kind: 'hub_source_response',
+          v: 1,
+          id: reqId,
+          payload: { html, fromDOM: true }
+        }, '*');
+        return;
+      }
+
+      // HTTP/HTTPS: fetch our own source file
+      fetch('platokit.html')
+        .then(r => r.ok ? r.text() : Promise.reject('HTTP ' + r.status))
+        .then(html => {
+          log(`${slotLabel}: -> hub_source_response (${html.length} bytes, fetched)`);
+          reqSource.postMessage({
+            kind: 'hub_source_response',
+            v: 1,
+            id: reqId,
+            payload: { html }
+          }, '*');
+        })
+        .catch(err => {
+          // Fallback to DOM serialization
+          log(`${slotLabel}: fetch failed (${err}), using DOM fallback`);
+          const html = serializeDOM();
+          log(`${slotLabel}: -> hub_source_response (${html.length} bytes, DOM fallback)`);
+          reqSource.postMessage({
+            kind: 'hub_source_response',
+            v: 1,
+            id: reqId,
+            payload: { html, fromDOM: true }
+          }, '*');
+        });
+
+      return;
+    }
+
+    // TRANSFORM PATH: Skin Action (from skin iframe)
+    // OAC: O = action payload, A = handleAction, C = must be from skin frame
+    // Skin sends user actions to hub for processing
+    if (d.kind === 'skin_action') {
+      if (HubSkinService.isEnabled() && e.source === HubSkinService.getFrame()?.contentWindow) {
+        HubSkinService.handleAction(d.payload || {}, e.source);
+      }
+      return;
+    }
+
+    // TRANSFORM PATH: Skin Relay (legacy/fallback - main path is via skin_action)
+    // Kept for backwards compatibility if skin sends kind:'skin_relay' directly
+    if (d.kind === 'skin_relay' && d.innerMessage) {
+      HubSkinService.handleCapRelay(d.viewport, d.innerMessage);
+      return;
+    }
+
+    // TRANSFORM PATH: Workspace State Request (from export UI or other caps)
+    // OAC: O = workspace state, A = getWorkspaceState, C = requestor is known iframe
+    // This allows sandboxed caps to request state without direct parent access
+    if (d.kind === 'workspace_state_request') {
+      const reqSource = e.source;
+      const reqId = d.id;
+      const reqOptions = d.options || {};
+
+      // Get the slot ID for logging (if from known iframe)
+      const reqSlotId = frameMap.get(reqSource);
+      const slotLabel = reqSlotId !== undefined ? `tile${reqSlotId + 1}` : 'unknown';
+
+      log(`${slotLabel}: <- workspace_state_request`);
+
+      // Async: get state and respond
+      HubStateService.getWorkspaceState({
+        includeStorage: reqOptions.includeStorage !== false,
+        includeSources: reqOptions.includeSources !== false,
+        includeCapStates: reqOptions.includeCapStates !== false,
+        fetchMissingSources: reqOptions.fetchMissingSources !== false
+      }).then(state => {
+        log(`${slotLabel}: -> workspace_state_response (${state.slots.length} slots)`);
+        reqSource.postMessage({
+          kind: 'workspace_state_response',
+          v: 1,
+          id: reqId,
+          payload: state
+        }, '*');
+      }).catch(err => {
+        log(`${slotLabel}: -> workspace_state_response error: ${err.message}`);
+        reqSource.postMessage({
+          kind: 'workspace_state_response',
+          v: 1,
+          id: reqId,
+          payload: null,
+          error: err.message
+        }, '*');
+      });
+
+      return;
+    }
+
+    // C: Identity constraint - message must come from known source
+    let id = frameMap.get(e.source);
+    if (id === undefined) {
+      // Recover mapping if message arrived before frameMap population.
+      for (const [slotId] of slots) {
+        const frame = document.getElementById('frame-' + slotId);
+        if (frame?.contentWindow === e.source) {
+          id = slotId;
+          frameMap.set(e.source, slotId);
+          break;
+        }
+      }
+    }
+    if (id === undefined) return;     // Unknown source = rejected
+
+    // O: Get capability state for this slot
+    const s = slots.get(id);
+    if (!s) return;
+
+    // INSTRUCTION DECODER: Route to algorithm based on kind
+    switch (d.kind) {
+
+      // TRANSFORM PATH: Register
+      // OAC: O = cap profile, A = register, C = valid payload
+      // Cap declares its OAC profile to the workspace
+      case 'register':
+        s.methods = d.payload?.methods || d.methods || [];  // O' = methods updated
+        s.capName = d.payload?.name || d.name || null;      // O' = name captured
+        s.capVersion = d.payload?.version || d.version || null;  // O' = version captured
+        s.status = 'ready';
+        log(`tile${id + 1}: <- register ${s.capName || '?'}@${s.capVersion || '?'} [${s.methods.join(',')}]`);
+
+        e.source.postMessage({
+          kind: 'registered',
+          v: 1,
+          payload: { success: true, name: s.capName || `tile${id + 1}`, hubId: hubState.workspaceId }
+        }, '*');
+
+        updateTileTitle(id);
+        updateCapsUI();
+        break;
+
+      // TRANSFORM PATH: Pong (health check response)
+      // OAC: O = ack, A = log, C = none
+      case 'pong':
+        log(`tile${id + 1}: <- pong`);
+        break;
+
+      // TRANSFORM PATH: Ready signal
+      // OAC: O = status, A = mark ready, C = none
+      case 'ready':
+      case 'iframe_ready':
+        s.status = 'ready';                     // O' = status updated
+        log(`tile${id + 1}: <- ready`);
+        updateTileTitle(id);
+        updateCapsUI();
+        break;
+
+      // TRANSFORM PATH: Generic response
+      // OAC: O = result, A = log, C = none
+      case 'response':
+        log(`tile${id + 1}: <- response: ${JSON.stringify(d.payload?.result || d.result)}`);
+        break;
+
+      // TRANSFORM PATH: Error report
+      // OAC: O = error info, A = log, C = none
+      case 'error':
+        log(`tile${id + 1}: <- error: ${d.payload?.message || d.error?.message || 'unknown'}`);
+        break;
+
+      // TRANSFORM PATH: State Response (from cap)
+      // OAC: O = cap state, A = handleStateResponse, C = pending query exists
+      case 'state_response':
+        if (d.id && HubStateService.handleStateResponse(d.id, d.payload || {})) {
+          log(`tile${id + 1}: <- state_response`);
+        }
+        break;
+
+      // TRANSFORM PATH: Storage Operation
+      // OAC: O = key/value, A = store op (get/set/append/remove/list/clear), C = STORE_PREFIX
+      case 'store':
+        const storePayload = d.payload || {};
+        const storeResult = HubStoreService.handle(
+          storePayload.op,
+          storePayload.key,
+          storePayload.value
+        );
+        log(`tile${id + 1}: <- store.${storePayload.op}(${storePayload.key}) -> ${storeResult.error || 'ok'}`);
+
+        // Send response back to requesting cap
+        e.source.postMessage({
+          kind: 'store_response',
+          v: 1,
+          id: d.id,
+          payload: storeResult
+        }, '*');
+        break;
+
+      // TRANSFORM PATH: HTTP Fetch
+      // OAC: O = request/response, A = fetch, C = ALLOWED_METHODS, CORS
+      case 'http':
+        const httpPayload = d.payload || {};
+        const httpSource = e.source;
+        const httpId = d.id;
+
+        log(`tile${id + 1}: <- http.${httpPayload.method || 'GET'} ${httpPayload.url || '?'}`);
+
+        // A: Execute async HTTP transform
+        // O' = fetch response, C applied inside HubHttpService.handle
+        HubHttpService.handle(httpPayload).then(httpResult => {
+          log(`tile${id + 1}: -> http ${httpResult.status || 'err'} ${httpResult.error || ''}`);
+          httpSource.postMessage({
+            kind: 'http_response',
+            v: 1,
+            id: httpId,
+            payload: httpResult          // O' returned to requester
+          }, '*');
+        });
+        break;
+
+      // TRANSFORM PATH: Service Discovery
+      // OAC: O = SERVICES registry, A = getCapabilities, C = read-only
+      case 'capabilities':
+        const capsResult = HubCapabilitiesService.getCapabilities();
+        log(`tile${id + 1}: <- capabilities (${capsResult.services.length} services)`);
+
+        e.source.postMessage({
+          kind: 'capabilities_response',
+          v: 1,
+          id: d.id,
+          payload: capsResult
+        }, '*');
+        break;
+
+      // TRANSFORM PATH: Event Bus Subscribe
+      // OAC: O = subscriptions map, A = subscribe, C = topic validation
+      case 'bus_subscribe':
+        const subTopic = d.payload?.topic;
+        if (subTopic) {
+          const subResult = HubEventBusService.subscribe(e.source, id, subTopic);
+          log(`tile${id + 1}: <- bus_subscribe(${subTopic})`);
+          e.source.postMessage({
+            kind: 'bus_subscribe_response',
+            v: 1,
+            id: d.id,
+            payload: subResult
+          }, '*');
+        }
+        break;
+
+      // TRANSFORM PATH: Event Bus Unsubscribe
+      // OAC: O = subscriptions map, A = unsubscribe, C = must be subscribed
+      case 'bus_unsubscribe':
+        const unsubTopic = d.payload?.topic;
+        if (unsubTopic) {
+          const unsubResult = HubEventBusService.unsubscribe(e.source, id, unsubTopic);
+          log(`tile${id + 1}: <- bus_unsubscribe(${unsubTopic})`);
+          e.source.postMessage({
+            kind: 'bus_unsubscribe_response',
+            v: 1,
+            id: d.id,
+            payload: unsubResult
+          }, '*');
+        }
+        break;
+
+      // TRANSFORM PATH: Event Bus Publish
+      // OAC: O = event data, A = publish (distribute to subscribers), C = topic matching
+      case 'bus_publish':
+        const pubTopic = d.payload?.topic;
+        const pubData = d.payload?.data;
+        if (pubTopic) {
+          // A: Distribute O to all subscribers of topic | C(subscribed)
+          const pubResult = HubEventBusService.publish(id, pubTopic, pubData);
+          log(`tile${id + 1}: <- bus_publish(${pubTopic}) -> ${pubResult.delivered} delivered`);
+        }
+        break;
+
+      // TRANSFORM PATH: Event Bus Broadcast
+      // OAC: O = event data, A = broadcast (distribute to ALL), C = none
+      case 'bus_broadcast':
+        const bcastData = d.payload?.data;
+        const bcastResult = HubEventBusService.broadcast(id, bcastData);
+        log(`tile${id + 1}: <- bus_broadcast -> ${bcastResult.delivered} delivered`);
+        break;
+
+      // TRANSFORM PATH: Event Bus List Topics
+      // OAC: O = topic registry, A = listTopics, C = read-only
+      case 'bus_list_topics':
+        const topicsList = HubEventBusService.listTopics();
+        log(`tile${id + 1}: <- bus_list_topics (${topicsList.length} topics)`);
+        e.source.postMessage({
+          kind: 'bus_list_topics_response',
+          v: 1,
+          id: d.id,
+          payload: { topics: topicsList }
+        }, '*');
+        break;
+
+      // TRANSFORM PATH: Load Base64 Content
+      // OAC: O = base64 HTML, A = decode + loadContent, C = valid base64
+      case 'load_base64':
+        const targetSlot = d.payload?.slot ?? findEmptySlot();
+        if (targetSlot !== null && d.payload?.b64) {
+          loadBase64(targetSlot, d.payload.b64);
+        }
+        break;
+
+      // TRANSFORM PATH: Tab Relay Open
+      // OAC: O = URL + request_id, A = openTab, C = ALLOWED_URLS whitelist (SECURITY)
+      // This is a PRIVILEGE ESCALATION - crossing from sandbox to unsandboxed zone
+      case 'open_tab':
+        const tabUrl = d.payload?.url;
+        const tabRequestId = d.id || ('tab_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6));
+        if (tabUrl) {
+          // A: Open tab | C(whitelist) - constraint checked inside service
+          const tabResult = HubTabRelayService.openTab(e.source, id, tabRequestId, tabUrl, d.payload);
+          log(`tile${id + 1}: <- open_tab(${tabUrl}) -> ${tabResult.success ? 'opened' : tabResult.error}`);
+          e.source.postMessage({
+            kind: 'open_tab_response',
+            v: 1,
+            id: tabRequestId,
+            payload: tabResult
+          }, '*');
+        }
+        break;
+
+      // TRANSFORM PATH: Cap-to-Hub Spawn Request
+      // OAC: O = cap URL or load_set name, A = addSlot + loadSlot (or PlatoKit.loadSet), C = valid URL/set name
+      // Allows a child cap (e.g. searcher) to request the hub to load another cap or set of caps
+      case 'spawn_cap':
+        const spawnUrl = d.payload?.url;
+        const spawnSetName = d.payload?.load_set;
+        const spawnRequestId = d.id || ('spawn_' + Date.now());
+        if (spawnSetName && LOAD_SETS[spawnSetName]) {
+          // Load an entire set of caps
+          PlatoKit.loadSet(spawnSetName);
+          log(`tile${id + 1}: <- spawn_cap(load_set=${spawnSetName})`);
+          e.source.postMessage({
+            kind: 'spawn_cap_response', v: 1, id: spawnRequestId,
+            payload: { success: true, load_set: spawnSetName }
+          }, '*');
+        } else if (spawnUrl) {
+          // Load a single cap - reuse empty slot if available
+          const spawnSlotId = findEmptySlot();
+          const spawnInput = document.querySelector(`[data-id="${spawnSlotId}"]`);
+          if (spawnInput) {
+            spawnInput.value = spawnUrl;
+            loadSlot(spawnSlotId);
+          }
+          log(`tile${id + 1}: <- spawn_cap(${spawnUrl}) -> slot ${spawnSlotId + 1}`);
+          e.source.postMessage({
+            kind: 'spawn_cap_response', v: 1, id: spawnRequestId,
+            payload: { success: true, slotId: spawnSlotId, url: spawnUrl }
+          }, '*');
+        } else {
+          log(`tile${id + 1}: <- spawn_cap (no url or load_set)`);
+          e.source.postMessage({
+            kind: 'spawn_cap_response', v: 1, id: spawnRequestId,
+            payload: { success: false, error: 'missing url or load_set' }
+          }, '*');
+        }
+        break;
+
+      // DEFAULT: Unknown instruction (no valid transform path)
+      default:
+        log(`tile${id + 1}: <- ${d.kind}`);
+    }
+  };
+  // END TRANSFORM KERNEL
+  // ==========================================================================
+
+  function findEmptySlot() {
+    for (const [id, s] of slots) {
+      if (s.status === 'empty') return id;
+    }
+    return addSlot();
+  }
+
+
+  // ==========================================================================
+  // OAC: DEBUG INTERFACE (Workspace.Debug - Development Algorithms)
+  // --------------------------------------------------------------------------
+  // Exposes workspace internals for debugging and manual transforms.
+  // All algorithm banks are accessible via PlatoKit.* in browser console.
+  //
+  // Classical: Facade Pattern, Debug Interface
+  // ==========================================================================
+  window.PlatoKit = {
+    // Load a set by name
+    loadSelectedSet: function() {
+      const setName = $loadSetSelect.value;
+      if (!setName || !LOAD_SETS[setName]) {
+        log('platokit: no load set selected');
+        return;
+      }
+      this.loadSet(setName);
+    },
+
+    loadSet: function(setName) {
+      const tiles = LOAD_SETS[setName];
+      if (!tiles) {
+        log('platokit: unknown load set: ' + setName);
+        return;
+      }
+      log('platokit: loading set "' + setName + '" (' + tiles.length + ' tiles)');
+
+      tiles.forEach((path, i) => {
+        // Find or create slot
+        let targetId = null;
+        for (const [id, s] of slots) {
+          if (s.status === 'empty') { targetId = id; break; }
+        }
+        if (targetId === null) targetId = addSlot();
+
+        // Set input and load
+        const input = document.querySelector(`[data-id="${targetId}"]`);
+        if (input) {
+          input.value = path;
+          loadSlot(targetId);
+        }
+      });
+    },
+
+    // Reload all loaded tiles
+    reloadAll: function() {
+      log('platokit: reloading all tiles');
+      for (const [id, s] of slots) {
+        if (s.status !== 'empty' && s.inputValue) {
+          const input = document.querySelector(`[data-id="${id}"]`);
+          if (input) {
+            input.value = s.inputValue;
+            loadSlot(id);
+          }
+        }
+      }
+    },
+
+    // Save current state to session
+    saveSession: function() {
+      const name = $sessionName.value.trim() || 'default';
+      const state = this.getState();
+
+      if (PlatoKitStorage.saveSession(name, state)) {
+        log('platokit: session saved: ' + name);
+      } else {
+        log('platokit: session save failed (storage unavailable)');
+      }
+    },
+
+    // Load session by name
+    loadSession: function() {
+      const name = $sessionName.value.trim() || 'default';
+      const state = PlatoKitStorage.getSession(name);
+
+      if (!state) {
+        log('platokit: session not found: ' + name);
+        return;
+      }
+
+      log('platokit: loading session: ' + name);
+      this.restoreState(state);
+    },
+
+    // Get current state as object
+    getState: function() {
+      const tilesState = [];
+      for (const [id, s] of slots) {
+        if (s.status !== 'empty') {
+          tilesState.push({
+            inputValue: s.inputValue || s.source,
+            type: s.type,
+            source: s.source
+          });
+        }
+      }
+      return {
+        version: 1,
+        tiles: tilesState,
+        timestamp: new Date().toISOString()
+      };
+    },
+
+    // Restore state from object
+    restoreState: function(state) {
+      if (!state || !state.tiles) return;
+
+      state.tiles.forEach((t, i) => {
+        let targetId = null;
+        for (const [id, s] of slots) {
+          if (s.status === 'empty') { targetId = id; break; }
+        }
+        if (targetId === null) targetId = addSlot();
+
+        const input = document.querySelector(`[data-id="${targetId}"]`);
+        if (input && t.inputValue) {
+          input.value = t.inputValue;
+          loadSlot(targetId);
+        }
+      });
+    },
+
+    // Copy deep link to clipboard
+    copyDeepLink: function() {
+      const state = this.getState();
+      const tiles = state.tiles.map(t => t.inputValue).filter(Boolean);
+
+      const url = PlatoKitParams.build({ tiles });
+
+      navigator.clipboard.writeText(url).then(() => {
+        log('platokit: deep link copied to clipboard');
+      }).catch(() => {
+        log('platokit: deep link: ' + url);
+      });
+    },
+
+    // Load from base64 param
+    loadBase64Param: function(b64) {
+      const id = findEmptySlot();
+      loadBase64(id, b64);
+    },
+
+    // Expose modules for debugging
+    Storage: PlatoKitStorage,
+    Params: PlatoKitParams,
+    StoreService: HubStoreService,
+    HttpService: HubHttpService,
+    Capabilities: HubCapabilitiesService,
+    EventBus: HubEventBusService,
+    TabRelay: HubTabRelayService,
+    StateService: HubStateService,
+    Skin: HubSkinService,
+    LOAD_SETS: LOAD_SETS,
+    SKIN_LOAD_SETS: HubSkinService.SKIN_LOAD_SETS,
+
+    // State export shortcuts
+    exportState: async function(options) {
+      log('platokit: exporting workspace state...');
+      const state = await HubStateService.getWorkspaceState(options);
+      log(`platokit: exported ${state.slots.length} slots, ${Object.keys(state.hubState.storageSnapshot || {}).length} storage keys`);
+      return state;
+    },
+
+    exportJson: async function(options) {
+      const json = await HubStateService.exportToJson(options);
+      log(`platokit: exported ${json.length} bytes JSON`);
+      return json;
+    },
+
+    downloadState: async function(filename, options) {
+      const json = await HubStateService.exportToJson(options);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `workspace_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      log(`platokit: downloaded ${a.download}`);
+    }
+  };
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: AUTO-INITIALIZATION (Workspace Boot Sequence)
+  // --------------------------------------------------------------------------
+  // Reads URL params and auto-loads capabilities on workspace startup.
+  // This is the "boot loader" - initializing the CCM Matrix from config.
+  //
+  // Classical: Bootstrap Pattern, Configuration Loading
+  // ==========================================================================
+  function autoInit() {
+    // Check for ?skin=true - spawn skin overlay
+    if (PlatoKitParams.getSkinMode()) {
+      log('platokit: skin mode enabled');
+      HubSkinService.spawn();
+      // Still continue to load caps below - they'll be available to skin
+    }
+
+    // Check for ?load_set=
+    const loadSet = PlatoKitParams.getLoadSet();
+    if (loadSet) {
+      // Skin-aware routing: prefer SKIN_LOAD_SETS when skin is active
+      if (PlatoKitParams.getSkinMode() && HubSkinService.SKIN_LOAD_SETS[loadSet]) {
+        log('platokit: routing load_set through skin: ' + loadSet);
+        // Wait for skin ready, then load the set via skin-aware path
+        const waitAndLoad = () => {
+          if (HubSkinService.isReady()) {
+            HubSkinService.loadSetForSkin(loadSet);
+          } else {
+            setTimeout(waitAndLoad, 150);
+          }
+        };
+        setTimeout(waitAndLoad, 200);
+        return;
+      }
+      // Fallback: legacy load set (non-skin or no SKIN_LOAD_SET match)
+      if (LOAD_SETS[loadSet]) {
+        log('platokit: auto-loading set from URL: ' + loadSet);
+        $loadSetSelect.value = loadSet;
+        setTimeout(() => PlatoKit.loadSet(loadSet), 100);
+        return;
+      }
+      log('platokit: unknown load_set: ' + loadSet);
+    }
+
+    // Check for ?tiles=
+    const tiles = PlatoKitParams.getTiles();
+    if (tiles.length > 0) {
+      log('platokit: auto-loading tiles from URL: ' + tiles.join(', '));
+      tiles.forEach((path, i) => {
+        setTimeout(() => {
+          let targetId = null;
+          for (const [id, s] of slots) {
+            if (s.status === 'empty') { targetId = id; break; }
+          }
+          if (targetId === null) targetId = addSlot();
+
+          const input = document.querySelector(`[data-id="${targetId}"]`);
+          if (input) {
+            input.value = path;
+            loadSlot(targetId);
+          }
+        }, i * 50);
+      });
+      return;
+    }
+
+    // Check for ?iframe_src_base64=
+    const b64 = PlatoKitParams.getBase64Iframe();
+    if (b64) {
+      log('platokit: auto-loading from base64 param');
+      setTimeout(() => PlatoKit.loadBase64Param(b64), 100);
+      return;
+    }
+
+    // Check for ?restore=
+    const restore = PlatoKitParams.getRestore();
+    if (restore) {
+      log('platokit: auto-restoring session: ' + restore);
+      $sessionName.value = restore;
+      setTimeout(() => PlatoKit.loadSession(), 100);
+      return;
+    }
+  }
+  // ==========================================================================
+
+
+  // ==========================================================================
+  // OAC: WORKSPACE INITIALIZATION
+  // --------------------------------------------------------------------------
+  // Bootstrap sequence: detect capabilities → populate UI → start kernel → boot
+  // ==========================================================================
+  detectCapabilities();       // Probe environment constraints
+  populateLoadSets();         // Initialize load set UI
+  // Dev toolbar links
+  (function() {
+    // PlatoKit UI link: default view (no hub param)
+    var sl = document.getElementById('skin-link');
+    if (sl) {
+      var u = new URL(location.href);
+      u.searchParams.delete('hub');
+      u.searchParams.delete('skin');
+      sl.href = u.toString();
+      sl.onclick = null;
+    }
+    // HTTP link: same page on local server (for auth/debug)
+    var hl = document.getElementById('http-link');
+    if (hl) {
+      var path = location.pathname.replace(/.*[/\\]/, '');
+      var search = location.search || '';
+      hl.href = HUB_SERVER + '/' + path + search;
+      hl.onclick = null;
+    }
+    // Debug link: separate Python debugger web UI (NOT hub :8081)
+    var dl = document.getElementById('debug-link');
+    if (dl) {
+      var debugHost = (location.hostname === 'localhost') ? DEBUG_WEB_SERVER_ALT : DEBUG_WEB_SERVER;
+      dl.href = debugHost + '/dev_menu.html';
+      dl.title = 'Python debug web UI (run: python dev\\platokit_debugger.py --web)';
+      dl.onclick = null;
+    }
+    // CLI hint: click to copy
+    var ch = document.getElementById('cli-hint');
+    if (ch) {
+      ch.onclick = function() {
+        try { navigator.clipboard.writeText('python start_server.py'); ch.style.color = '#0f0'; setTimeout(function() { ch.style.color = '#888'; }, 1000); } catch (_) {}
+      };
+    }
+  })();
+  // Server probe: check if local HTTP server is reachable
+  (function() {
+    var $ss = document.getElementById('server-status');
+    var $sh = document.getElementById('server-hint');
+    if (!$ss) return;
+    fetch(HUB_SERVER + '/', { method: 'HEAD', mode: 'no-cors' })
+      .then(function() { $ss.textContent = HUB_SERVER + ' online'; $ss.style.color = '#0f0'; })
+      .catch(function() { $ss.textContent = 'offline'; $ss.style.color = '#f44'; if ($sh) $sh.style.display = 'inline'; });
+  })();
+  log('platokit ready');          // Workspace online
+  addSlot();                  // Create first capability slot
+
+  // Boot: auto-load from URL params after DOM ready
+  setTimeout(autoInit, 50);
+
+})();
+// ============================================================================
+// END CCM MATRIX WORKSPACE
+// ============================================================================
+</script>
+<script>
+// Debug loader: platokit.html?debug=1 or platokit.html#debug
+(function(){if(/[?#]debug/.test(location.href)){
+  var s=document.createElement('script');s.src='js/platokit_debug.js';document.head.appendChild(s);
+}})();
+</script>
+</body></html>

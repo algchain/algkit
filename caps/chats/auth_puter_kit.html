@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!--
+  PUTER AUTH TAB - Part of Hub Tab Relay System
+
+  Architecture (file:// hub + http:// auth):
+  ============================================
+
+  file://platokit.html (hub)
+      │
+      ├── iframe: caps (sandboxed)
+      │       │
+      │       └── postMessage: open_tab request
+      │
+      └── window.open ──► http://127.0.0.1:8081/auth_puter_kit.html (THIS FILE)
+                                │
+                                ├── Puter popup (real HTTP origin works!)
+                                │
+                                └── postMessage(*, '*') back to file:// hub
+                                        │
+                                        └── hub routes to requesting cap
+
+  WHY HTTP REQUIRED:
+  - Hub runs from file:// (portable, no server)
+  - But Puter.js popup needs real HTTP origin
+  - This auth tab MUST be served from http://
+  - Posts back to file:// hub using '*' target origin
+-->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Puter Auth</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #eee;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      max-width: 400px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      color: #fff;
+    }
+    .subtitle {
+      color: #888;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      padding: 16px 32px;
+      font-size: 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .status {
+      font-size: 14px;
+      color: #888;
+      margin-top: 20px;
+    }
+    .status.success { color: #4ade80; }
+    .status.error { color: #f87171; }
+    .request-id {
+      font-family: monospace;
+      font-size: 11px;
+      color: #666;
+      margin-top: 20px;
+      word-break: break-all;
+    }
+    .info {
+      font-size: 12px;
+      color: #666;
+      margin-top: 30px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Puter Authentication</h1>
+    <p class="subtitle">Connect to Puter.js for AI services</p>
+
+    <button id="btn-connect">Click to Connect LLM</button>
+
+    <div id="status" class="status"></div>
+    <div id="request-id" class="request-id"></div>
+
+    <div class="info">
+      This page opens a popup to authenticate with Puter.<br>
+      Once complete, the token will be sent to the hub.
+    </div>
+  </div>
+
+  <script src="https://js.puter.com/v2/"></script>
+  <script>
+    // Get request_id from URL params
+    const params = new URLSearchParams(location.search);
+    const requestId = params.get('request_id');
+
+    const $status = document.getElementById('status');
+    const $requestId = document.getElementById('request-id');
+    const $btnConnect = document.getElementById('btn-connect');
+
+    // Display request ID
+    if (requestId) {
+      $requestId.textContent = `Request ID: ${requestId}`;
+    } else {
+      $requestId.textContent = 'No request_id - running standalone';
+    }
+
+    function setStatus(msg, type = '') {
+      $status.textContent = msg;
+      $status.className = 'status ' + type;
+    }
+
+    // Send result back to opener (hub)
+    function sendToOpener(payload) {
+      if (window.opener) {
+        window.opener.postMessage({
+          kind: 'tab_relay',
+          request_id: requestId,
+          payload
+        }, '*');
+        return true;
+      }
+      return false;
+    }
+
+    // Check if already authenticated
+    async function checkExistingAuth() {
+      try {
+        if (puter.auth.isSignedIn()) {
+          const token = puter.authToken;
+          setStatus('Already authenticated!', 'success');
+
+          if (requestId && sendToOpener({ provider: 'puter', token, cached: true })) {
+            setStatus('Token sent to hub. Closing...', 'success');
+            setTimeout(() => window.close(), 1500);
+          }
+          return true;
+        }
+      } catch (e) {
+        console.log('Not signed in yet');
+      }
+      return false;
+    }
+
+    // Main auth - uses authenticateWithPuter() which auto-completes
+    // (No user interaction in Puter popup - just opens, verifies, closes)
+    $btnConnect.addEventListener('click', async () => {
+      $btnConnect.disabled = true;
+      setStatus('Connecting to Puter...', '');
+
+      try {
+        await puter.ui.authenticateWithPuter();
+
+        const token = puter.authToken;
+        if (!token) {
+          throw new Error('No token received');
+        }
+
+        setStatus('Authentication successful!', 'success');
+        console.log('Puter token obtained:', token.substring(0, 20) + '...');
+
+        if (requestId) {
+          if (sendToOpener({ provider: 'puter', token })) {
+            setStatus('Token sent to hub. Closing...', 'success');
+            setTimeout(() => window.close(), 1500);
+          } else {
+            setStatus('Token obtained but no opener', 'success');
+          }
+        } else {
+          setStatus('Token obtained (standalone)', 'success');
+          console.log('Full token:', token);
+        }
+
+      } catch (err) {
+        console.error('Auth failed:', err);
+        setStatus('Auth failed: ' + err.message, 'error');
+        $btnConnect.disabled = false;
+        if (requestId) sendToOpener({ provider: 'puter', error: err.message });
+      }
+    });
+
+    // ========================================
+    // WHY WE USE OUR OWN BUTTON (not auto-trigger)
+    // ========================================
+    // REQUIREMENT: Browser needs isTrusted=true for popup (window.open)
+    //
+    // OPTION A: Auto-trigger on load
+    //   - Puter detects isTrusted=false
+    //   - Shows <puter-dialog> with confusing message:
+    //     "This website uses Puter to bring you safe, secure..."
+    //   - User must click "Continue" (not clear what it does)
+    //
+    // OPTION B: Our own button (CHOSEN)
+    //   - Clear message: "Click to Connect LLM"
+    //   - User clicks OUR button (isTrusted=true)
+    //   - Puter popup opens directly, no intermediate dialog
+    //   - Better UX - user knows what they're doing
+    //
+    // DECISION: Use our button for clear UX over Puter's generic dialog.
+    //
+    // Check existing auth on load (but don't trigger new auth)
+    checkExistingAuth();
+  </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+{
+  "_comment": "Load set definitions for platokit.html. Currently inline in platokit.html (line ~1701), this file is for future external loading.",
+  "_usage": "platokit.html?load_set=samples_basic",
+  "_updated": "2026-02-08",
+
+  "sets": {
+    "search": {
+      "description": "Capability search and discovery",
+      "tiles": [
+        "caps/base_pages/search_main_kit.html"
+      ]
+    },
+    "samples_basic": {
+      "description": "Basic ping/echo test",
+      "tiles": [
+        "caps/caps_samples/sample_ping.html",
+        "caps/caps_samples/sample_echo.html"
+      ]
+    },
+    "samples_all": {
+      "description": "All sample caps",
+      "tiles": [
+        "caps/caps_samples/sample_ping.html",
+        "caps/caps_samples/sample_echo.html",
+        "caps/caps_samples/sample_storage.html",
+        "caps/caps_samples/sample_clock.html",
+        "caps/caps_samples/sample_counter.html"
+      ]
+    },
+    "test_runner": {
+      "description": "Test runner only",
+      "tiles": [
+        "caps/caps_samples/test_runner.html"
+      ]
+    },
+    "storage_test": {
+      "description": "Storage capability test",
+      "tiles": [
+        "caps/base_pages/store_local_kit.html",
+        "caps/caps_samples/sample_ping.html"
+      ]
+    },
+    "input_list": {
+      "description": "Basic input/list via hub store",
+      "tiles": [
+        "caps/caps_samples/input_userlist.html"
+      ]
+    },
+    "submit_challenge": {
+      "description": "Input/list with HTTP submit to endpoint",
+      "tiles": [
+        "caps/caps_samples/input_submit-challenge.html"
+      ]
+    },
+    "llm_chat": {
+      "description": "Allen AI LLM chat only",
+      "tiles": [
+        "caps/chats/chat_gateway-allenai_kit.html"
+      ]
+    },
+    "llm_demo": {
+      "description": "LLM + message sender (full demo)",
+      "tiles": [
+        "caps/chats/chat_gateway-allenai_kit.html",
+        "caps/base_pages/msg_send_kit.html"
+      ]
+    },
+    "messaging": {
+      "description": "Message broadcaster test",
+      "tiles": [
+        "caps/base_pages/msg_send_kit.html",
+        "caps/caps_samples/sample_ping.html"
+      ]
+    },
+    "llm_gateway": {
+      "description": "Tab relay auth demo (chats gateway)",
+      "tiles": [
+        "caps/chats/chat_gateway-allenai_kit.html"
+      ]
+    },
+    "export": {
+      "description": "Workspace export UI",
+      "tiles": [
+        "platokit_export_ui.html"
+      ]
+    },
+    "chatskit": {
+      "description": "Full chats kit with export",
+      "tiles": [
+        "caps/chats/chat_gateway-allenai_kit.html",
+        "platokit_export_ui.html"
+      ]
+    },
+    "video_chat": {
+      "description": "WebRTC video chat",
+      "tiles": [
+        "caps/chat_video/chat_video_kit.html"
+      ]
+    },
+    "video_llm": {
+      "description": "Video chat + LLM (bus integration demo)",
+      "tiles": [
+        "caps/chat_video/chat_video_kit.html",
+        "caps/chats/chat_gateway-allenai_kit.html"
+      ]
+    },
+    "help": {
+      "description": "Help hotline only",
+      "tiles": [
+        "caps/help/help_hotline_kit.html"
+      ]
+    },
+    "help_chat": {
+      "description": "Help hotline + mesh chat (bus routing test)",
+      "tiles": [
+        "caps/help/help_hotline_kit.html",
+        "caps/chat_video/chat_video_kit.html"
+      ]
+    },
+    "help_full": {
+      "description": "Help + chat + LLM (full integration)",
+      "tiles": [
+        "caps/help/help_hotline_kit.html",
+        "caps/chat_video/chat_video_kit.html",
+        "caps/chats/chat_gateway-allenai_kit.html"
+      ]
+    },
+    "skin_demo": {
+      "description": "Demo caps for skin mode",
+      "tiles": [
+        "caps/chats/chat_gateway-allenai_kit.html",
+        "caps/base_pages/msg_send_kit.html"
+      ]
+    },
+    "ideas_pipeline": {
+      "description": "Ideas submission workflow (placeholder - not yet created)",
+      "tiles": [
+        "ideas/ideas_input.html",
+        "ideas/ideas_store.html",
+        "ideas/ideas_view.html"
+      ]
+    },
+    "tk_submit": {
+      "description": "Submit to TK workflow (placeholder - not yet created)",
+      "tiles": [
+        "ideas/ideas_store.html",
+        "ideas/tk_submit.html"
+      ]
+    }
+  }
+}

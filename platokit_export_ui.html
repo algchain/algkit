@@ -1,0 +1,889 @@
+<!--@platokit-cap
+name: platokit_export_ui
+version: 1.0.0
+provides:
+  - export.json
+  - export.html
+  - export.bookmarklet
+requires:
+  - store (hub)
+author: only_sims
+license: MIT
+description: Export workspace UI - save state, compile HTML, generate bookmarklets
+tags:
+  - export
+  - compile
+  - bookmarklet
+  - workspace
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      background: #1a1a1a;
+      color: #0f0;
+      font-family: monospace;
+      padding: 10px;
+      margin: 0;
+      font-size: 11px;
+    }
+    .header {
+      color: #0ff;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header .title { font-weight: bold; font-size: 12px; }
+    .header .status {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .header .status.ready { color: #0f0; background: #030; }
+    .header .status.busy { color: #ff0; background: #330; }
+    .header .status.error { color: #f44; background: #300; }
+
+    .section {
+      border: 1px solid #333;
+      padding: 8px;
+      margin-bottom: 10px;
+      background: #0a0a0a;
+    }
+    .section-title {
+      color: #0ff;
+      font-size: 10px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .row label {
+      color: #888;
+      min-width: 80px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 120px;
+      background: #000;
+      border: 1px solid #555;
+      color: #0f0;
+      padding: 4px 6px;
+      font-family: monospace;
+      font-size: 10px;
+    }
+    input[type="text"]:focus {
+      border-color: #0f0;
+      outline: none;
+    }
+
+    input[type="checkbox"] {
+      accent-color: #0f0;
+    }
+
+    select {
+      background: #000;
+      border: 1px solid #555;
+      color: #0ff;
+      padding: 4px;
+      font-family: monospace;
+      font-size: 10px;
+    }
+
+    button {
+      background: #030;
+      border: 1px solid #0f0;
+      color: #0f0;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 10px;
+    }
+    button:hover { background: #050; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.primary {
+      background: #003;
+      border-color: #0ff;
+      color: #0ff;
+    }
+    button.primary:hover { background: #005; }
+    button.warn {
+      background: #330;
+      border-color: #ff0;
+      color: #ff0;
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .checkbox-row label {
+      min-width: auto;
+      color: #ccc;
+    }
+
+    .warning {
+      color: #ff0;
+      font-size: 10px;
+      padding: 4px;
+      background: #330;
+      border-left: 2px solid #ff0;
+      margin: 5px 0;
+    }
+
+    .bookmarklet-container {
+      margin-top: 8px;
+      padding: 8px;
+      background: #001;
+      border: 1px solid #0ff;
+      border-radius: 4px;
+    }
+    .bookmarklet-link {
+      display: inline-block;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      cursor: grab;
+    }
+    .bookmarklet-link:hover {
+      opacity: 0.9;
+    }
+    .bookmarklet-hint {
+      color: #666;
+      font-size: 9px;
+      margin-top: 5px;
+    }
+
+    .log {
+      border: 1px solid #333;
+      padding: 5px;
+      max-height: 80px;
+      overflow-y: auto;
+      font-size: 10px;
+      background: #0a0a0a;
+      white-space: pre-wrap;
+      color: #888;
+    }
+
+    .stats {
+      font-size: 10px;
+      color: #666;
+      margin-top: 5px;
+    }
+    .stats span { margin-right: 10px; }
+    .stats .count { color: #0ff; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="title">Workspace Export</span>
+    <span class="status ready" id="status">ready</span>
+  </div>
+
+  <!-- Export Options -->
+  <div class="section">
+    <div class="section-title">Export Options</div>
+
+    <div class="row">
+      <label>Name:</label>
+      <input type="text" id="workspace-name" value="my_workspace" placeholder="workspace name">
+    </div>
+
+    <div class="row">
+      <label>Format:</label>
+      <select id="format">
+        <option value="json">JSON (state only)</option>
+        <option value="json-full">JSON + Sources</option>
+        <option value="html" selected>Compiled HTML</option>
+        <option value="base64">Base64 HTML (for bookmarklet)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="checkbox-row">
+        <input type="checkbox" id="include-storage" checked>
+        <label for="include-storage">Include hub storage</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="checkbox-row">
+        <input type="checkbox" id="include-tokens" checked>
+        <label for="include-tokens">Include auth tokens</label>
+      </div>
+    </div>
+
+    <div class="warning" id="token-warning" style="display:none">
+      Contains auth tokens. Only share with trusted parties.
+    </div>
+
+    <div class="row" style="margin-top: 10px">
+      <button class="primary" id="btn-export">Export</button>
+      <button id="btn-preview">Preview State</button>
+      <button id="btn-copy">Copy to Clipboard</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <!-- Bookmarklet -->
+  <div class="section">
+    <div class="section-title">Bookmarklet</div>
+
+    <div class="row">
+      <label>Hosted URL:</label>
+      <input type="text" id="hosted-url" placeholder="https://example.com/workspace.html">
+    </div>
+
+    <div class="row">
+      <label>Mode:</label>
+      <select id="bookmarklet-mode">
+        <option value="embedded-direct">Embedded → Iframe overlay (JSON)</option>
+        <option value="embedded-base64">Embedded → Iframe overlay (Base64)</option>
+        <option value="embedded-div">Embedded → Div overlay (no iframe)</option>
+        <option value="fetch">Fetch URL → Iframe overlay</option>
+        <option value="navigate">Navigate to URL</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <button id="btn-gen-bookmarklet">Generate Bookmarklet</button>
+    </div>
+
+    <div class="bookmarklet-container" id="bookmarklet-container" style="display:none">
+      <a class="bookmarklet-link" id="bookmarklet-link" href="#">Drag me to bookmarks bar</a>
+      <div class="bookmarklet-hint">Drag the link above to your bookmarks bar</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <div class="section-title">Log</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    console.log('=== EXPORT UI SCRIPT STARTING ===');
+
+    // NOTE: Not using type="module" - blocked in sandboxed iframes
+    const CAP_NAME = 'platokit_export_ui';
+    const CAP_VERSION = '1.0.0';
+    const CAP_METHODS = ['export.json', 'export.html', 'export.bookmarklet'];
+
+    // DOM
+    const $status = document.getElementById('status');
+    const $name = document.getElementById('workspace-name');
+    const $format = document.getElementById('format');
+    const $includeStorage = document.getElementById('include-storage');
+    const $includeTokens = document.getElementById('include-tokens');
+    const $tokenWarning = document.getElementById('token-warning');
+    const $btnExport = document.getElementById('btn-export');
+    const $btnPreview = document.getElementById('btn-preview');
+    const $btnCopy = document.getElementById('btn-copy');
+    const $stats = document.getElementById('stats');
+    const $hostedUrl = document.getElementById('hosted-url');
+    const $bookmarkletMode = document.getElementById('bookmarklet-mode');
+    const $btnGenBookmarklet = document.getElementById('btn-gen-bookmarklet');
+    const $bookmarkletContainer = document.getElementById('bookmarklet-container');
+    const $bookmarkletLink = document.getElementById('bookmarklet-link');
+    const $log = document.getElementById('log');
+
+    let registered = false;
+    let lastState = null;
+    let pendingStateRequest = null;
+
+    // Logging
+    function log(msg) {
+      const ts = new Date().toISOString().slice(11, 23);
+      $log.textContent += `[${ts}] ${msg}\n`;
+      $log.scrollTop = $log.scrollHeight;
+      console.log('[export-ui]', msg);
+    }
+
+    function setStatus(text, type = 'ready') {
+      $status.textContent = text;
+      $status.className = 'status ' + type;
+    }
+
+    // Token warning toggle
+    $includeTokens.onchange = () => {
+      $tokenWarning.style.display = $includeTokens.checked ? 'block' : 'none';
+    };
+
+    // ========================================
+    // INLINE COMPILER (no dynamic import needed)
+    // ========================================
+    const Compiler = {
+      escapeForScriptTag(html) {
+        return html
+          .replace(/<\/script>/gi, '<\\/script>')
+          .replace(/<\/style>/gi, '<\\/style>');
+      },
+
+      escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      },
+
+      async fetchHubSource() {
+        // Request hub source via postMessage (can't fetch directly from sandbox)
+        return new Promise((resolve) => {
+          const reqId = 'hubsrc_' + Date.now();
+          const timeout = setTimeout(() => {
+            log('Hub source request timeout');
+            resolve(null);
+          }, 10000);
+
+          const handler = (e) => {
+            const d = e.data;
+            if (d.kind === 'hub_source_response' && d.id === reqId) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handler);
+              if (d.error) {
+                log('Hub source error: ' + d.error);
+                resolve(null);
+              } else {
+                resolve(d.payload?.html || null);
+              }
+            }
+          };
+
+          window.addEventListener('message', handler);
+          parent.postMessage({
+            kind: 'hub_source_request',
+            v: 1,
+            id: reqId
+          }, '*');
+        });
+      },
+
+      async compileToHtml(state, options = {}) {
+        const { name = 'Compiled Workspace', hubSource = null, baseUrl = null } = options;
+
+        let hubHtml = hubSource || await this.fetchHubSource();
+        if (!hubHtml) {
+          throw new Error('Hub source not available');
+        }
+
+        // Inject <base href> to preserve original server URL for relative fetches
+        // This allows URL loading to work in bookmarklet/compiled context
+        const originalBase = baseUrl || location.origin + location.pathname.replace(/[^/]*$/, '');
+        if (originalBase && !hubHtml.includes('<base')) {
+          hubHtml = hubHtml.replace(
+            /<head([^>]*)>/i,
+            `<head$1>\n  <base href="${originalBase}">`
+          );
+        }
+
+        const embeddedCaps = [];
+        for (let i = 0; i < state.slots.length; i++) {
+          const slot = state.slots[i];
+          if (slot.sourceHtml) {
+            embeddedCaps.push({
+              index: i,
+              name: slot.registration?.name || `cap_${i}`,
+              html: this.escapeForScriptTag(slot.sourceHtml)
+            });
+          }
+        }
+
+        const embeddedState = {
+          ...state,
+          slots: state.slots.map(s => ({
+            ...s,
+            sourceHtml: undefined,
+            hasEmbeddedSource: !!s.sourceHtml
+          }))
+        };
+
+        const timestamp = new Date().toISOString();
+
+        // Build the compiled HTML as array and join to avoid closing-script-tag parsing issues
+        const scriptOpen = '<' + 'script';
+        const scriptClose = '</' + 'script>';
+
+        const parts = [
+          '<!DOCTYPE html>',
+          '<html>',
+          '<head>',
+          '  <meta charset="utf-8">',
+          '  <title>' + this.escapeHtml(name) + '</title>',
+          '  <meta name="generator" content="platokit_export_ui">',
+          '  <meta name="compiled-at" content="' + timestamp + '">',
+          '  <style>',
+          '    body { margin: 0; padding: 0; overflow: hidden; }',
+          '    #hub-frame { width: 100%; height: 100vh; border: none; }',
+          '    #loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #111; color: #0f0; font-family: monospace; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; }',
+          '    #loading.hidden { display: none; }',
+          '  </style>',
+          '</head>',
+          '<body>',
+          '<div id="loading">',
+          '  <div>Loading compiled workspace...</div>',
+          '  <div id="load-status">Initializing</div>',
+          '</div>',
+          '',
+          scriptOpen + ' id="hub-source" type="text/html">',
+          this.escapeForScriptTag(hubHtml),
+          scriptClose,
+          ''
+        ];
+
+        // Add embedded cap sources
+        embeddedCaps.forEach(cap => {
+          parts.push(scriptOpen + ' id="cap-' + cap.index + '-source" type="text/html" data-name="' + this.escapeHtml(cap.name) + '">');
+          parts.push(cap.html);
+          parts.push(scriptClose);
+        });
+
+        parts.push('');
+        parts.push(scriptOpen + ' id="workspace-state" type="application/json">');
+        parts.push(JSON.stringify(embeddedState, null, 2));
+        parts.push(scriptClose);
+        parts.push('');
+
+        // Bootstrap script - built with string concat to avoid parser issues
+        const bootstrap = [
+          '(function() {',
+          '  var $loading = document.getElementById("loading");',
+          '  var $status = document.getElementById("load-status");',
+          '  function setStatus(msg) { $status.textContent = msg; }',
+          '  // Unescape: <\\/ becomes </ (regex needs \\\\\\/ to output \\/ which matches backslash-slash)',
+          '  function unescape(s) { return s.replace(/<\\\\\\/script>/gi, "<" + "/script>").replace(/<\\\\\\/style>/gi, "<" + "/style>"); }',
+          '  var hubSource = unescape(document.getElementById("hub-source").textContent);',
+          '  var state = JSON.parse(document.getElementById("workspace-state").textContent);',
+          '  setStatus("Creating hub frame...");',
+          '  var hubFrame = document.createElement("iframe");',
+          '  hubFrame.id = "hub-frame";',
+          '  hubFrame.sandbox = "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox";',
+          '  hubFrame.srcdoc = hubSource;',
+          '  document.body.appendChild(hubFrame);',
+          '  hubFrame.onload = function() {',
+          '    setStatus("Hub loaded, injecting capabilities...");',
+          '    setTimeout(function() {',
+          '      var loaded = 0;',
+          '      var toLoad = state.slots.filter(function(s) { return s.hasEmbeddedSource; }).length;',
+          '      state.slots.forEach(function(slot, i) {',
+          '        if (!slot.hasEmbeddedSource) return;',
+          '        var sourceEl = document.getElementById("cap-" + i + "-source");',
+          '        if (!sourceEl) return;',
+          '        var capHtml = unescape(sourceEl.textContent);',
+          '        hubFrame.contentWindow.postMessage({ kind: "load_compiled_cap", v: 1, slot: i, html: capHtml, loadInfo: slot.loadInfo, registration: slot.registration, capState: slot.capState }, "*");',
+          '        loaded++;',
+          '        setStatus("Loaded " + loaded + "/" + toLoad);',
+          '      });',
+          '      if (state.hubState && state.hubState.storageSnapshot) {',
+          '        var keys = Object.keys(state.hubState.storageSnapshot);',
+          '        if (keys.length > 0) {',
+          '          setStatus("Restoring " + keys.length + " storage keys...");',
+          '          hubFrame.contentWindow.postMessage({ kind: "restore_storage", v: 1, storage: state.hubState.storageSnapshot }, "*");',
+          '        }',
+          '      }',
+          '      setTimeout(function() { $loading.classList.add("hidden"); }, 500);',
+          '    }, 100);',
+          '  };',
+          '})();'
+        ].join('\n');
+
+        parts.push(scriptOpen + '>');
+        parts.push(bootstrap);
+        parts.push(scriptClose);
+        parts.push('</body>');
+        parts.push('</html>');
+
+        return parts.join('\n');
+      },
+
+      // Generate bookmarklet - supports embedded (direct/base64) or URL-based modes
+      generateBookmarklet(options = {}) {
+        const { url, html, mode = 'embedded-direct' } = options;
+
+        // Shared iframe overlay code (without the html source part)
+        const overlayCode = `var f=document.createElement('iframe');f.srcdoc=h;f.style='position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;border:none;background:#111;';f.sandbox='allow-scripts allow-popups allow-same-origin';document.body.appendChild(f);var c=document.createElement('button');c.textContent='X';c.style='position:fixed;top:10px;right:10px;z-index:9999999;padding:8px 12px;background:#f44;color:#fff;border:none;cursor:pointer;font-size:14px;';c.onclick=function(){f.remove();c.remove();};document.body.appendChild(c);`;
+
+        let code;
+        if (mode === 'embedded-direct') {
+          // Direct: JSON-stringify HTML (handles all escaping)
+          if (!html) throw new Error('HTML required for embedded mode');
+          const jsonStr = JSON.stringify(html);
+          code = `(function(){var h=${jsonStr};${overlayCode}})()`;
+        } else if (mode === 'embedded-base64') {
+          // Base64 fallback: encode HTML as base64
+          if (!html) throw new Error('HTML required for embedded mode');
+          const b64 = btoa(unescape(encodeURIComponent(html))); // UTF-8 safe
+          code = `(function(){var h=decodeURIComponent(escape(atob('${b64}')));${overlayCode}})()`;
+        } else if (mode === 'embedded-div') {
+          // Div overlay: inject into page using shadow DOM (avoids iframe sandbox issues)
+          if (!html) throw new Error('HTML required for embedded mode');
+          const jsonStr = JSON.stringify(html);
+          // Create div with shadow DOM, inject iframe inside shadow to isolate styles
+          code = `(function(){var d=document.createElement('div');d.id='platokit-overlay';d.style='position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:rgba(0,0,0,0.9);';var s=d.attachShadow({mode:'open'});var f=document.createElement('iframe');f.style='width:100%;height:100%;border:none;';f.srcdoc=${jsonStr};s.appendChild(f);var c=document.createElement('button');c.textContent='X';c.style='position:fixed;top:10px;right:10px;z-index:9999999;padding:8px 12px;background:#f44;color:#fff;border:none;cursor:pointer;font-size:14px;';c.onclick=function(){d.remove();c.remove();};document.body.appendChild(d);document.body.appendChild(c);})()`;
+        } else if (mode === 'navigate') {
+          if (!url) throw new Error('URL required for navigate mode');
+          code = `location.href='${url}'`;
+        } else if (mode === 'overlay') {
+          if (!url) throw new Error('URL required for overlay mode');
+          code = `(function(){var f=document.createElement('iframe');f.src='${url}';f.style='position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;border:none;';f.sandbox='allow-scripts allow-popups allow-same-origin';var c=document.createElement('button');c.textContent='X';c.style='position:fixed;top:10px;right:10px;z-index:9999999;padding:8px 12px;background:#f44;color:#fff;border:none;cursor:pointer;';c.onclick=function(){f.remove();c.remove();};document.body.appendChild(f);document.body.appendChild(c);})()`;
+        } else {
+          // fetch mode
+          if (!url) throw new Error('URL required for fetch mode');
+          code = `(function(){var f=document.createElement('iframe');f.style='position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;border:none;background:#111;';f.sandbox='allow-scripts allow-popups';document.body.appendChild(f);fetch('${url}').then(function(r){return r.text()}).then(function(h){f.srcdoc=h;});var c=document.createElement('button');c.textContent='X';c.style='position:fixed;top:10px;right:10px;z-index:9999999;padding:8px 12px;background:#f44;color:#fff;border:none;cursor:pointer;';c.onclick=function(){f.remove();c.remove();};document.body.appendChild(c);})()`;
+        }
+        return 'javascript:' + encodeURIComponent(code);
+      },
+
+      download(content, filename, mimeType = 'text/html') {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    };
+
+    // ========================================
+    // STATE REQUEST VIA POSTMESSAGE
+    // ========================================
+    function requestState(options = {}) {
+      return new Promise((resolve, reject) => {
+        const reqId = 'export_' + Date.now();
+        log(`Sending workspace_state_request id=${reqId}`);
+
+        const timeout = setTimeout(() => {
+          log('State request TIMEOUT after 15s');
+          pendingStateRequest = null;
+          reject(new Error('State request timeout'));
+        }, 15000);
+
+        pendingStateRequest = { reqId, resolve, reject, timeout };
+
+        parent.postMessage({
+          kind: 'workspace_state_request',
+          v: 1,
+          id: reqId,
+          options: options
+        }, '*');
+
+        log('Request sent, waiting for response...');
+      });
+    }
+
+    async function getHubState() {
+      const options = {
+        includeStorage: $includeStorage.checked,
+        includeSources: $format.value !== 'json',
+        includeCapStates: true,
+        fetchMissingSources: $format.value === 'html' || $format.value === 'json-full'
+      };
+
+      log('Requesting state from hub...');
+      setStatus('fetching...', 'busy');
+
+      try {
+        const state = await requestState(options);
+        if (!state) throw new Error('No state returned');
+        lastState = state;
+        updateStats(state);
+        setStatus('ready', 'ready');
+        return state;
+      } catch (e) {
+        log('Error getting hub state: ' + e.message);
+        setStatus('error', 'error');
+        throw e;
+      }
+    }
+
+    function updateStats(state) {
+      const slots = state.slots?.length || 0;
+      const sources = state.slots?.filter(s => s.sourceHtml).length || 0;
+      const storage = Object.keys(state.hubState?.storageSnapshot || {}).length;
+      $stats.innerHTML = `
+        <span>Slots: <span class="count">${slots}</span></span>
+        <span>Sources: <span class="count">${sources}</span></span>
+        <span>Storage keys: <span class="count">${storage}</span></span>
+      `;
+    }
+
+    // Strip tokens from state if requested
+    function stripTokens(state) {
+      if (!state) return state;
+      const cleaned = JSON.parse(JSON.stringify(state));
+
+      // Remove token-like keys from storage
+      if (cleaned.hubState?.storageSnapshot) {
+        const storage = cleaned.hubState.storageSnapshot;
+        Object.keys(storage).forEach(key => {
+          if (key.includes('token') || key.includes('auth') || key.includes('credential')) {
+            delete storage[key];
+            log(`Stripped: ${key}`);
+          }
+        });
+      }
+
+      return cleaned;
+    }
+
+    // Export handlers
+    $btnExport.onclick = async () => {
+      log('Export clicked, format: ' + $format.value);
+      try {
+        $btnExport.disabled = true;
+        setStatus('exporting...', 'busy');
+
+        log('Calling getHubState...');
+        let state = await getHubState();
+        log('Got state: ' + (state ? state.slots?.length + ' slots' : 'null'));
+
+        if (!$includeTokens.checked) {
+          state = stripTokens(state);
+        }
+
+        const format = $format.value;
+        const name = $name.value || 'workspace';
+
+        if (format === 'html' || format === 'base64') {
+          const baseUrl = location.origin + location.pathname.replace(/[^/]*$/, '');
+          log(`Compiling to HTML (base: ${baseUrl})...`);
+          const html = await Compiler.compileToHtml(state, { name, baseUrl });
+          log(`Compiled HTML: ${Math.round(html.length/1024)}KB`);
+
+          if (format === 'base64') {
+            // Export as base64 data URL (useful for bookmarklet testing)
+            const b64 = btoa(unescape(encodeURIComponent(html)));
+            const dataUrl = `data:text/html;base64,${b64}`;
+            log(`Base64: ${Math.round(b64.length/1024)}KB (${Math.round(b64.length/html.length*100)}% of HTML)`);
+
+            // Download as .txt with the data URL
+            Compiler.download(dataUrl, `${name}_base64.txt`, 'text/plain');
+            log(`Downloaded: ${name}_base64.txt (paste into browser URL bar to test)`);
+          } else {
+            Compiler.download(html, `${name}.html`, 'text/html');
+            log(`Downloaded: ${name}.html`);
+          }
+
+        } else {
+          // JSON export
+          const json = JSON.stringify(state, null, 2);
+          log(`JSON: ${Math.round(json.length/1024)}KB`);
+
+          Compiler.download(json, `${name}.json`, 'application/json');
+          log(`Downloaded: ${name}.json`);
+        }
+
+        setStatus('ready', 'ready');
+
+      } catch (e) {
+        log('Export error: ' + e.message);
+        setStatus('error', 'error');
+      } finally {
+        $btnExport.disabled = false;
+      }
+    };
+
+    $btnPreview.onclick = async () => {
+      try {
+        const state = await getHubState();
+        console.log('Workspace State:', state);
+        log('State logged to console. ' + state.slots.length + ' slots.');
+      } catch (e) {
+        log('Preview error: ' + e.message);
+      }
+    };
+
+    $btnCopy.onclick = async () => {
+      try {
+        let state = await getHubState();
+        if (!$includeTokens.checked) {
+          state = stripTokens(state);
+        }
+
+        const format = $format.value;
+
+        if (format === 'html') {
+          const html = await Compiler.compileToHtml(state, { name: $name.value || 'workspace' });
+          await navigator.clipboard.writeText(html);
+          log(`Copied ${html.length} bytes HTML to clipboard`);
+        } else {
+          const json = JSON.stringify(state, null, 2);
+          await navigator.clipboard.writeText(json);
+          log(`Copied ${json.length} bytes JSON to clipboard`);
+        }
+
+      } catch (e) {
+        log('Copy error: ' + e.message);
+      }
+    };
+
+    // Bookmarklet generation
+    $btnGenBookmarklet.onclick = async () => {
+      try {
+        const mode = $bookmarkletMode.value;
+        let bookmarklet;
+
+        if (mode === 'embedded-direct' || mode === 'embedded-base64' || mode === 'embedded-div') {
+          // Embedded modes: compile workspace and embed in bookmarklet
+          log(`Compiling workspace for ${mode} bookmarklet...`);
+
+          // For bookmarklet, always request sources (regardless of format dropdown)
+          log('Requesting state with sources...');
+          const state = await requestState({
+            includeStorage: $includeStorage.checked,
+            includeSources: true,
+            includeCapStates: true,
+            fetchMissingSources: true  // Critical: fetch sources for URL-loaded caps
+          });
+          if (!state) {
+            log('Failed to get hub state');
+            return;
+          }
+
+          // Check if sources were embedded
+          const sourcesCount = state.slots?.filter(s => s.sourceHtml).length || 0;
+          log(`State received: ${state.slots?.length || 0} slots, ${sourcesCount} with sources`);
+
+          if (sourcesCount === 0) {
+            log('WARNING: No sources embedded! Caps loaded via URL need fetching.');
+          }
+
+          const baseUrl = location.origin + location.pathname.replace(/[^/]*$/, '');
+          log(`Base URL for fetches: ${baseUrl}`);
+
+          const html = await Compiler.compileToHtml(state, {
+            name: $name.value || 'workspace',
+            baseUrl
+          });
+
+          log(`Compiled HTML: ${Math.round(html.length/1024)}KB`);
+
+          // Check size before generating - large bookmarklets crash browsers
+          const MAX_SAFE_SIZE = 64 * 1024; // 64KB - conservative limit
+          const estimatedSize = mode === 'embedded-base64'
+            ? Math.round(html.length * 1.4)  // base64 + wrapper
+            : Math.round(html.length * 1.5); // JSON escape + URL encode
+
+          if (estimatedSize > MAX_SAFE_SIZE) {
+            log(`WARNING: Estimated size ${Math.round(estimatedSize/1024)}KB exceeds 64KB - may crash some browsers`);
+          }
+
+          bookmarklet = Compiler.generateBookmarklet({ html, mode });
+
+          // Show actual size
+          log(`Bookmarklet size: ${Math.round(bookmarklet.length/1024)}KB`);
+        } else {
+          // URL-based modes require hosted URL
+          const url = $hostedUrl.value.trim();
+          if (!url) {
+            log('Enter a hosted URL for this mode');
+            return;
+          }
+          bookmarklet = Compiler.generateBookmarklet({ url, mode });
+        }
+
+        $bookmarkletLink.href = bookmarklet;
+        $bookmarkletLink.textContent = '📎 ' + ($name.value || 'Workspace');
+        $bookmarkletContainer.style.display = 'block';
+
+        log(`Bookmarklet generated (${Math.round(bookmarklet.length/1024)}KB, mode: ${mode})`);
+
+      } catch (e) {
+        log('Bookmarklet error: ' + e.message);
+        console.error(e);
+      }
+    };
+
+    // Hub message handler
+    window.onmessage = (e) => {
+      const d = e.data || {};
+      if (!d.kind) return;
+
+      // Debug: log all incoming messages
+      if (d.kind !== 'ping') {
+        log(`<- ${d.kind}${d.id ? ' id=' + d.id : ''}`);
+      }
+
+      switch (d.kind) {
+        case 'registered':
+          registered = true;
+          log('Registered with hub');
+          break;
+
+        case 'ping':
+          parent.postMessage({ kind: 'pong', v: 1 }, '*');
+          break;
+
+        case 'workspace_state_response':
+          // Handle state response
+          log(`State response: pending=${!!pendingStateRequest}, id match=${pendingStateRequest?.reqId === d.id}`);
+          if (pendingStateRequest && d.id === pendingStateRequest.reqId) {
+            clearTimeout(pendingStateRequest.timeout);
+            if (d.error) {
+              log('State error: ' + d.error);
+              pendingStateRequest.reject(new Error(d.error));
+            } else {
+              log('State payload: ' + (d.payload ? 'yes' : 'no'));
+              pendingStateRequest.resolve(d.payload);
+            }
+            pendingStateRequest = null;
+          }
+          break;
+      }
+    };
+
+    // Init
+    function init() {
+      log('Export UI initializing...');
+
+      // Verify DOM elements found
+      log(`DOM: btnExport=${!!$btnExport}, btnPreview=${!!$btnPreview}, btnCopy=${!!$btnCopy}`);
+
+      // Attach click handlers explicitly
+      if ($btnExport) {
+        $btnExport.addEventListener('click', function() {
+          log('>>> EXPORT BUTTON CLICKED <<<');
+        });
+        log('Export button handler attached');
+      }
+
+      // Register with hub
+      parent.postMessage({
+        kind: 'register',
+        v: 1,
+        payload: {
+          name: CAP_NAME,
+          version: CAP_VERSION,
+          methods: CAP_METHODS
+        }
+      }, '*');
+
+      // Show token warning if checked
+      $tokenWarning.style.display = $includeTokens.checked ? 'block' : 'none';
+
+      log('Ready. Compiler inline.');
+    }
+
+    init();
+  </script>
+</body>
+</html>

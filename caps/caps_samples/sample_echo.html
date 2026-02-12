@@ -1,0 +1,89 @@
+<!--@platokit-cap
+echo
+kind: sample
+version: 1.0.0
+provides:
+  - echo.send
+requires: []
+author: hubathon
+license: MIT
+description: Echoes back any message sent to it
+tags:
+  - test
+  - debug
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { background: #1a1a1a; color: #0f0; font-family: monospace; padding: 10px; margin: 0; font-size: 11px; }
+    .label { color: #0ff; }
+    .count { color: #ff0; }
+    .last { color: #888; font-size: 10px; margin-top: 5px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div><span class="label">Echo Cap</span> | Echoed: <span class="count" id="count">0</span></div>
+  <div class="last" id="last"></div>
+  <script>
+    (function() {
+      'use strict';
+
+      const CAP_NAME = 'echo';
+      const CAP_METHODS = ['send'];
+      let echoCount = 0;
+
+      // Register
+      parent.postMessage({
+        kind: 'register',
+        v: 1,
+        payload: { name: CAP_NAME, methods: CAP_METHODS }
+      }, '*');
+
+      // Handle messages
+      window.onmessage = e => {
+        const { kind, v = 1, payload = {} } = e.data || {};
+
+        if (kind === 'ping') {
+          parent.postMessage({ kind: 'pong', v: 1 }, '*');
+          return;
+        }
+
+        if (kind === 'call') {
+          const { id, method, args = {} } = payload;
+
+          if (method === 'send') {
+            echoCount++;
+            document.getElementById('count').textContent = echoCount;
+            document.getElementById('last').textContent = 'Last: ' + JSON.stringify(args.message || args);
+
+            parent.postMessage({
+              kind: 'response',
+              v: 1,
+              payload: {
+                id,
+                result: {
+                  echo: args.message || args,
+                  count: echoCount,
+                  timestamp: Date.now()
+                }
+              }
+            }, '*');
+          } else {
+            parent.postMessage({
+              kind: 'error',
+              v: 1,
+              payload: { id, code: 'UNKNOWN_METHOD', message: `Unknown method: ${method}` }
+            }, '*');
+          }
+        }
+
+        if (kind === 'unload') {
+          parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+        }
+      };
+    })();
+  </script>
+</body>
+</html>

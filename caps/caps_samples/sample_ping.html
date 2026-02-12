@@ -1,0 +1,75 @@
+<!--@platokit-cap
+ping
+kind: sample
+version: 1.0.0
+provides:
+  - ping.respond
+requires: []
+author: hubathon
+license: MIT
+description: Simple ping/pong test capability
+tags:
+  - test
+  - basic
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { background: #1a1a1a; color: #0f0; font-family: monospace; padding: 10px; margin: 0; }
+    .status { font-size: 12px; }
+    .count { color: #ff0; }
+  </style>
+</head>
+<body>
+  <div class="status">Ping Cap | Pongs: <span class="count" id="count">0</span></div>
+  <script>
+    (function() {
+      'use strict';
+
+      const CAP_NAME = 'ping';
+      const CAP_METHODS = ['respond'];
+      let pongCount = 0;
+
+      // Register
+      parent.postMessage({
+        kind: 'register',
+        v: 1,
+        payload: { name: CAP_NAME, methods: CAP_METHODS }
+      }, '*');
+
+      // Handle messages
+      window.onmessage = e => {
+        const { kind, v = 1, payload = {} } = e.data || {};
+
+        switch (kind) {
+          case 'registered':
+            console.log('Registered as:', payload.name);
+            break;
+
+          case 'ping':
+            pongCount++;
+            document.getElementById('count').textContent = pongCount;
+            parent.postMessage({ kind: 'pong', v: 1 }, '*');
+            break;
+
+          case 'call':
+            if (payload.method === 'respond') {
+              parent.postMessage({
+                kind: 'response',
+                v: 1,
+                payload: { id: payload.id, result: { pongs: pongCount } }
+              }, '*');
+            }
+            break;
+
+          case 'unload':
+            parent.postMessage({ kind: 'unloading', v: 1 }, '*');
+            break;
+        }
+      };
+    })();
+  </script>
+</body>
+</html>
