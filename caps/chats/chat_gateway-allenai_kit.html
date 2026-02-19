@@ -153,10 +153,15 @@ tags:
       'use strict';
 
       // ================================================================
-      // GLOBAL CONFIG - edit these if server/port/paths change
+      // GLOBAL CONFIG - auto-detects dev vs production deployment
       // ================================================================
-      var HUB_SERVER = 'http://127.0.0.1:8081';              // local dev server (start_server.bat)
-      var AUTH_TAB_URL = HUB_SERVER + '/caps/chats/auth_puter_kit.html';  // must be HTTP (not file://)
+      // auth_puter_kit.html must be served from real HTTP (not file://).
+      // In local dev use explicit localhost server; in production resolve
+      // relative to this cap's own URL so it works on any host/path.
+      var _capIsLocalDev = (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      var AUTH_TAB_URL = _capIsLocalDev
+        ? 'http://127.0.0.1:8081/caps/chats/auth_puter_kit.html'
+        : new URL('auth_puter_kit.html', location.href).href;
       // ================================================================
 
       var CAP_NAME = 'chats_gateway_allenai';

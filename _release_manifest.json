@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5298115,
+  "total_bytes": 5300894,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -70,8 +70,8 @@
     },
     {
       "path": "caps/chat_video/chat_video_kit.html",
-      "size": 30135,
-      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
+      "size": 31108,
+      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
     },
     {
       "path": "caps/chats/auth_puter_kit.html",
@@ -80,8 +80,8 @@
     },
     {
       "path": "caps/chats/chat_gateway-allenai_kit.html",
-      "size": 26485,
-      "sha256": "ca132ef233dc9ca748fb6979c79acf1b0eac50ff13b3663ccd5ea09da9c31569"
+      "size": 26809,
+      "sha256": "3478fd1fe722e04a5be8b18618dd7a5cbb528e20bbe2688cba4709a04607089e"
     },
     {
       "path": "caps/help/help_hotline_kit.html",
@@ -120,8 +120,8 @@
     },
     {
       "path": "platokit.html",
-      "size": 132716,
-      "sha256": "b3966e19bc0ab8d7841a7039cc0eb436094ae6ae55367b199aab6bc06335025b"
+      "size": 133225,
+      "sha256": "3d79aca7189de1de85197e6fb9dd395d5ad4e1e21b861209bb3302f6cf6f79f1"
     },
     {
       "path": "platokit_compiler.js",
@@ -140,8 +140,8 @@
     },
     {
       "path": "SAMPLE-CHAT_VIDEO_KIT.html",
-      "size": 30135,
-      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
+      "size": 31108,
+      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
     }
   ]
 }
