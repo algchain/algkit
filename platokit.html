@@ -1026,7 +1026,7 @@ iframe{border:1px solid #0f0;width:100%;height:390px;display:block;background:#0
     // Whitelist of allowed tab URLs (must be FULL http:// - see llm_auth_flow.md)
     // HUB_SERVER is auto-detected from window.location (see GLOBAL CONFIG above):
     //   dev:  http://127.0.0.1:8081
-    //   prod: https://algchain.com  OR  https://algchain.github.io/algkit
+    //   prod: https://algchain.github.io/algkit  (or any host it's deployed to)
     const ALLOWED_URLS = [
       HUB_SERVER + '/caps/chats/auth_puter_kit.html',
       HUB_SERVER_ALT + '/caps/chats/auth_puter_kit.html',

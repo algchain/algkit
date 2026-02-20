@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5300894,
+  "total_bytes": 5300900,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -120,8 +120,8 @@
     },
     {
       "path": "platokit.html",
-      "size": 133225,
-      "sha256": "3d79aca7189de1de85197e6fb9dd395d5ad4e1e21b861209bb3302f6cf6f79f1"
+      "size": 133231,
+      "sha256": "5ebbb0c201523b79e4040524d9aeb69ec843c35e1faf3de0cb6aa45149926708"
     },
     {
       "path": "platokit_compiler.js",
