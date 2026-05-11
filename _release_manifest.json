@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5305804,
+  "total_bytes": 5305331,
   "files": [
     {
       "path": "README.md",
@@ -90,8 +90,8 @@
     },
     {
       "path": "caps/chats/chat_gateway-allenai_kit.html",
-      "size": 31713,
-      "sha256": "836385d786f895727ae730f244f5692bf387d40a4e8da35f657e68727b3f7467"
+      "size": 31240,
+      "sha256": "78104849edf210489e94d13fe80ef1a14935522881f6907a558d597c5e4c2581"
     },
     {
       "path": "caps/help/help_hotline_kit.html",
