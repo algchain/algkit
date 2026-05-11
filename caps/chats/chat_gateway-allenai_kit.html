@@ -291,27 +291,18 @@ tags:
         }
 
         // Validate token by checking if Puter.js can read it back.
-        // CORS blocks direct api.puter.com validation from sandbox,
-        // so we verify the token is readable and attempt a lightweight
-        // identity check. If it fails, the first chat call will reveal it.
+        // Since Puter.js SDK behavior can change (e.g. prefixing or hiding tokens),
+        // we no longer hard-fail here. If the token is truly invalid, 
+        // the first chat call will naturally catch the 401 and reset auth.
         try {
-          var readback = puter.auth.getAuthToken ? puter.auth.getAuthToken() : null;
-          if (!readback || readback !== token) {
-            console.warn('[gateway] token validation failed — stored token may be expired or invalid');
-            authenticated = false;
-            setStatus('auth expired', 'error');
-            updateDots();
-            enableChat(false);
-            addMessage('Stored token rejected by Puter. Click Authenticate to reconnect.', 'error');
-            if (isHubbed) {
-              parent.postMessage({ kind: 'store', v: 1, id: genId(), payload: { op: 'remove', key: TOKEN_KEY } }, '*');
-            }
-            busPublish('llm_status', { ready: false, cap: CAP_NAME });
-            return false;
+          if (typeof puter.auth.getAuthToken === 'function') {
+             var readback = puter.auth.getAuthToken();
+             if (readback !== token) {
+               console.warn('[gateway] Token validation warning: readback token does not strictly match. Puter.js may have transformed or hidden it. Proceeding anyway.');
+             }
           }
         } catch (e) {
           console.warn('[gateway] token validation error:', e);
-          // Token is readable but may still be expired. Defer to first chat call.
         }
 
         authenticated = true;
