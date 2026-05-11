@@ -1,8 +1,18 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5298115,
+  "total_bytes": 5305804,
   "files": [
+    {
+      "path": "README.md",
+      "size": 6073,
+      "sha256": "d91520b5b9636d13c8ec87f7cb241a33ecfab96025b6f91f241983d1859fff4a"
+    },
+    {
+      "path": "SAMPLE-CHAT_VIDEO_KIT.html",
+      "size": 31108,
+      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
+    },
     {
       "path": "assets/media/logo1_small_2cm.png",
       "size": 23175,
@@ -70,8 +80,8 @@
     },
     {
       "path": "caps/chat_video/chat_video_kit.html",
-      "size": 30135,
-      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
+      "size": 31108,
+      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
     },
     {
       "path": "caps/chats/auth_puter_kit.html",
@@ -80,8 +90,8 @@
     },
     {
       "path": "caps/chats/chat_gateway-allenai_kit.html",
-      "size": 26485,
-      "sha256": "ca132ef233dc9ca748fb6979c79acf1b0eac50ff13b3663ccd5ea09da9c31569"
+      "size": 31713,
+      "sha256": "836385d786f895727ae730f244f5692bf387d40a4e8da35f657e68727b3f7467"
     },
     {
       "path": "caps/help/help_hotline_kit.html",
@@ -120,8 +130,8 @@
     },
     {
       "path": "platokit.html",
-      "size": 132716,
-      "sha256": "b3966e19bc0ab8d7841a7039cc0eb436094ae6ae55367b199aab6bc06335025b"
+      "size": 133231,
+      "sha256": "5ebbb0c201523b79e4040524d9aeb69ec843c35e1faf3de0cb6aa45149926708"
     },
     {
       "path": "platokit_compiler.js",
@@ -132,16 +142,6 @@
       "path": "platokit_export_ui.html",
       "size": 32591,
       "sha256": "e96894c939a0b0eb9643de281a688f9c4084ff259a555b7d1a623bc4711552b2"
-    },
-    {
-      "path": "README.md",
-      "size": 6073,
-      "sha256": "d91520b5b9636d13c8ec87f7cb241a33ecfab96025b6f91f241983d1859fff4a"
-    },
-    {
-      "path": "SAMPLE-CHAT_VIDEO_KIT.html",
-      "size": 30135,
-      "sha256": "ceded5dfd950c9072644a9d74b6ac65be69ec337d83b263ddb1a8753b920d5cb"
     }
   ]
 }

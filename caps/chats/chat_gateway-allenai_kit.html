@@ -22,6 +22,7 @@ tags:
   - puter
 -->
 <!--
+  #0v5# JC May 10, 2026   Token validation on setAuthToken + streaming fallback retry. Not sure if this fully fixes the issue — can't test yet, but something might be going on with token expiry / Puter.js SDK behavior.
   #0v4# JC Feb 08, 2026   Standalone mode: clear error on file://, direct popup auth on http://.
   #0v3# JC Feb 08, 2026   Global config block, fixed auth URL path in comment.
   #0v2# JC Feb 07, 2026   Skin-matched UI, bus integration (llm_status, help_request), call protocol.
@@ -135,9 +136,11 @@ tags:
   <div class="section">
     <div class="section-label">Model</div>
     <select id="model">
-      <option value="allenai/olmo-3.1-32b-instruct" selected>Olmo 3.1 32B Instruct</option>
-      <option value="allenai/olmo-3.1-32b-think">Olmo 3.1 32B Think</option>
-      <option value="allenai/olmo-3-7b-instruct">Olmo 3 7B Instruct (faster)</option>
+      <!-- CAVEAT: We are using the smartest Puter default (which may be closed-source/commercial) 
+           because the allenai/olmo models are currently unavailable on the backend. 
+           We should ideally find a working Allen AI or other permissive open-source model 
+           for unconstrained automation loops in the future. -->
+      <option value="default" selected>Puter Default (Smartest Available)</option>
     </select>
   </div>
 
@@ -153,10 +156,15 @@ tags:
       'use strict';
 
       // ================================================================
-      // GLOBAL CONFIG - edit these if server/port/paths change
+      // GLOBAL CONFIG - auto-detects dev vs production deployment
       // ================================================================
-      var HUB_SERVER = 'http://127.0.0.1:8081';              // local dev server (start_server.bat)
-      var AUTH_TAB_URL = HUB_SERVER + '/caps/chats/auth_puter_kit.html';  // must be HTTP (not file://)
+      // auth_puter_kit.html must be served from real HTTP (not file://).
+      // In local dev use explicit localhost server; in production resolve
+      // relative to this cap's own URL so it works on any host/path.
+      var _capIsLocalDev = (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+      var AUTH_TAB_URL = _capIsLocalDev
+        ? 'http://127.0.0.1:8081/caps/chats/auth_puter_kit.html'
+        : new URL('auth_puter_kit.html', location.href).href;
       // ================================================================
 
       var CAP_NAME = 'chats_gateway_allenai';
@@ -282,9 +290,30 @@ tags:
           addMessage('Found stored token.', 'system');
         }
 
-        // Trust setAuthToken - SDK IndexedDB/localStorage errors are non-fatal.
-        // CORS blocks direct api.puter.com validation from sandbox.
-        // If token is expired, the first chat call will reveal it.
+        // Validate token by checking if Puter.js can read it back.
+        // CORS blocks direct api.puter.com validation from sandbox,
+        // so we verify the token is readable and attempt a lightweight
+        // identity check. If it fails, the first chat call will reveal it.
+        try {
+          var readback = puter.auth.getAuthToken ? puter.auth.getAuthToken() : null;
+          if (!readback || readback !== token) {
+            console.warn('[gateway] token validation failed — stored token may be expired or invalid');
+            authenticated = false;
+            setStatus('auth expired', 'error');
+            updateDots();
+            enableChat(false);
+            addMessage('Stored token rejected by Puter. Click Authenticate to reconnect.', 'error');
+            if (isHubbed) {
+              parent.postMessage({ kind: 'store', v: 1, id: genId(), payload: { op: 'remove', key: TOKEN_KEY } }, '*');
+            }
+            busPublish('llm_status', { ready: false, cap: CAP_NAME });
+            return false;
+          }
+        } catch (e) {
+          console.warn('[gateway] token validation error:', e);
+          // Token is readable but may still be expired. Defer to first chat call.
+        }
+
         authenticated = true;
         storedToken = token;
         setStatus('ready', 'ready');
@@ -307,14 +336,84 @@ tags:
         $btnSend.disabled = true;
 
         try {
-          var response = await puter.ai.chat(question, { model: model, stream: true, temperature: 0.7 });
-          var fullResponse = '';
-          var contentEl = addMessage('', 'assistant', 'AI (' + model.split('/').pop() + ')');
+          var chatOpts = { stream: true };
+          if (model && model !== 'default') {
+              chatOpts.model = model;
+          }
+          
+          var response = await puter.ai.chat(question, chatOpts);
+          
+          // Detect API returning an error object directly instead of throwing
+          if (response && (response.error || (response.code && response.message))) {
+            var errStr = response.error || response.message;
+            if (typeof errStr === 'string' && errStr.indexOf('Model not found') !== -1 && model !== 'default') {
+               console.warn('[gateway] Model ' + model + ' not found. Falling back to default model.');
+               addMessage('Model unavailable. Automatically falling back to default smartest model...', 'system');
+               
+               // Switch UI
+               $model.value = 'default';
+               model = 'default';
+               delete chatOpts.model;
+               
+               // Retry
+               response = await puter.ai.chat(question, chatOpts);
+               if (response && (response.error || (response.code && response.message))) {
+                   throw new Error(response.error || response.message);
+               }
+            } else {
+               throw new Error(typeof errStr === 'string' ? errStr : JSON.stringify(response));
+            }
+          }
 
-          for await (var part of response) {
-            var chunk = (part && part.text) || (part && part.message && part.message.content) || (part && part.reasoning) || '';
-            fullResponse += chunk;
+          var fullResponse = '';
+          var contentEl = addMessage('', 'assistant', 'AI (' + (model === 'default' ? 'Default' : model.split('/').pop()) + ')');
+
+          if (!response) {
+             throw new Error('API returned an empty response. This is usually caused by a 400 Bad Request (e.g. invalid model or parameters).');
+          }
+
+          // Puter.js may return a non-iterable response (error, deprecated API, etc.)
+          if (typeof response[Symbol.asyncIterator] === 'function') {
+            for await (var part of response) {
+              var chunk = (part && part.text) || (part && part.message && part.message.content) || (part && part.reasoning) || '';
+              fullResponse += chunk;
+              updateMessage(contentEl, fullResponse);
+            }
+          } else {
+            // Streaming not supported for this response
+            console.warn('[gateway] response is not async iterable', response);
+            contentEl.textContent = '';
+            var retryResponse = response;
+            
+            // If the initial response doesn't contain text, do a fallback request without streaming
+            if (typeof retryResponse !== 'string' && !retryResponse.text && !(retryResponse.message && retryResponse.message.content)) {
+              console.warn('[gateway] retrying without streaming');
+              chatOpts.stream = false;
+              retryResponse = await puter.ai.chat(question, chatOpts);
+            }
+            
+            if (!retryResponse) {
+                throw new Error('Fallback API request returned an empty response.');
+            } else if (typeof retryResponse === 'string') {
+                fullResponse = retryResponse;
+            } else {
+                fullResponse = retryResponse.text || 
+                               (retryResponse.message && retryResponse.message.content) || 
+                               retryResponse.error || 
+                               JSON.stringify(retryResponse);
+            }
+            
             updateMessage(contentEl, fullResponse);
+            
+            if (retryResponse.error) {
+                // If it was an error object, style it as such and throw to trigger the catch block logic
+                contentEl.parentNode.classList.add('error');
+                throw new Error(typeof retryResponse.error === 'string' ? retryResponse.error : JSON.stringify(retryResponse.error));
+            }
+          }
+
+          if (!fullResponse) {
+            fullResponse = '(empty response)';
           }
 
           chatHistory.push({ role: 'user', text: question, ts: new Date().toISOString() });

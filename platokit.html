@@ -144,10 +144,15 @@ iframe{border:1px solid #0f0;width:100%;height:390px;display:block;background:#0
   window.name = 'platokit';
 
   // ================================================================
-  // GLOBAL CONFIG - edit these if server/port/paths change
+  // GLOBAL CONFIG - auto-detects dev vs production deployment
   // ================================================================
-  const HUB_SERVER = 'http://127.0.0.1:8081';    // local dev server (start_server.bat)
-  const HUB_SERVER_ALT = 'http://localhost:8081'; // alias
+  // In local dev (localhost / 127.0.0.1 / file://) use explicit local server.
+  // In production (GitHub Pages, custom domain) derive base from window.location
+  // so auth tab URLs resolve correctly without any manual edits.
+  const _isLocalDev = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:');
+  const _basePath = location.pathname.replace(/\/[^/\\]*$/, ''); // strip filename → directory
+  const HUB_SERVER = _isLocalDev ? 'http://127.0.0.1:8081' : (location.origin + _basePath);
+  const HUB_SERVER_ALT = _isLocalDev ? 'http://localhost:8081' : (location.origin + _basePath);
   const DEBUG_WEB_SERVER = 'http://127.0.0.1:8766';     // python dev web UI (platokit_debugger.py --web)
   const DEBUG_WEB_SERVER_ALT = 'http://localhost:8766'; // alias
   // ================================================================
@@ -1019,12 +1024,12 @@ iframe{border:1px solid #0f0;width:100%;height:390px;display:block;background:#0
     const pendingRequests = new Map();
 
     // Whitelist of allowed tab URLs (must be FULL http:// - see llm_auth_flow.md)
-    // Uses HUB_SERVER / HUB_SERVER_ALT from outer scope GLOBAL CONFIG
+    // HUB_SERVER is auto-detected from window.location (see GLOBAL CONFIG above):
+    //   dev:  http://127.0.0.1:8081
+    //   prod: https://algchain.github.io/algkit  (or any host it's deployed to)
     const ALLOWED_URLS = [
       HUB_SERVER + '/caps/chats/auth_puter_kit.html',
       HUB_SERVER_ALT + '/caps/chats/auth_puter_kit.html',
-      // GitHub Pages for production:
-      // 'https://yourusername.github.io/repo/caps/chats/auth_puter_kit.html',
     ];
 
     // Log of tab relay activity

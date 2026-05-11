@@ -1,4 +1,4 @@
-<!--@platokit-cap
+﻿<!--@platokit-cap
 video
 kind: chat
 version: 2.1.0
@@ -440,10 +440,29 @@ tags:
         function processIceQueue() {
             while (iceQueue.length) pc.addIceCandidate(iceQueue.shift()).catch(console.error);
         }
+// #0v2# Assumption: crypto.randomUUID fallback for SES/non-secure contexts to prevent room-init crash.
+ generateRoomId() {
+            try {
+                const c = (typeof globalThis !== 'undefined' && globalThis.crypto)
+                    ? globalThis.crypto
+                    : ((typeof crypto !== 'undefined') ? crypto : null);
+                if (c && typeof c.randomUUID === 'function') {
+                    return c.randomUUID().slice(0, 8);
+                }
+                if (c && typeof c.getRandomValues === 'function') {
+                    const bytes = new Uint8Array(4);
+                    c.getRandomValues(bytes);
+                    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+                }
+            } catch (e) {
+                console.warn('[chat2_vid] Room ID crypto fallback:', e && e.message ? e.message : e);
+            }
+            return Math.random().toString(16).slice(2, 10).padEnd(8, '0').slice(0, 8);
+        }
 
         function init() {
             if (isPeerA) {
-                room = crypto.randomUUID().slice(0, 8);
+                room = generateRoomId();
             }
 
             updateRoomUI();
@@ -639,3 +658,4 @@ tags:
     </script>
 </body>
 </html>
+
