@@ -440,8 +440,8 @@ tags:
         function processIceQueue() {
             while (iceQueue.length) pc.addIceCandidate(iceQueue.shift()).catch(console.error);
         }
-// #0v2# Assumption: crypto.randomUUID fallback for SES/non-secure contexts to prevent room-init crash.
- generateRoomId() {
+        // #0v2# Assumption: crypto.randomUUID fallback for SES/non-secure contexts to prevent room-init crash.
+        function generateRoomId() {
             try {
                 const c = (typeof globalThis !== 'undefined' && globalThis.crypto)
                     ? globalThis.crypto
