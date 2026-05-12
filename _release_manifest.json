@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 28,
-  "total_bytes": 5305331,
+  "total_bytes": 5305382,
   "files": [
     {
       "path": "README.md",
@@ -80,8 +80,8 @@
     },
     {
       "path": "caps/chat_video/chat_video_kit.html",
-      "size": 31108,
-      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
+      "size": 31159,
+      "sha256": "64654ad5e0f1f5a89b354977db0abd756d188f7cf0d8c16be84dd311dcdc12e7"
     },
     {
       "path": "caps/chats/auth_puter_kit.html",
