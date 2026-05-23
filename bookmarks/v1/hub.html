@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PlatoKit: Exit — hub</title>
+  <!-- Embeddable by /collar.html (same origin). Per spec §8 must NOT set
+       frame-ancestors 'none' under the nested layout. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none';">
+  <meta name="referrer" content="no-referrer">
+</head>
+<body>
+  <!-- Relative path: resolves against the hub iframe's URL. Works whether
+       collar loaded this from a root path (dev) or a subdirectory (GH Pages). -->
+  <script src="hub.js"></script>
+</body>
+</html>

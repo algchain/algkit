@@ -1,0 +1,227 @@
+<!doctype html>
+<!--@platokit-uapp
+name: add
+kind: registry-admin
+version: 0.1.0
+peer: collar (bc.v0)
+caps_invoked: []
+collar_kinds: [ua]
+viewport_hint:
+  w: 460
+  h: 480
+description: Registry admin uapp. Adds and removes user-installed uapps via
+  the collar's `ua` kind. Requires admin scope (granted via UAPPS[name].admin
+  in the collar). Same-origin (HUB) URLs only — the collar's CSP child-src
+  'self' enforces this anyway. Persists across sessions via localStorage
+  (bcrpc.registry.uapps); on every collar boot the saved list is re-validated
+  and merged back into UAPPS before the tab strip renders.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PlatoKit · add</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font:13px/1.45 system-ui,sans-serif;color:#111;background:#fafafa;display:flex;flex-direction:column;padding:10px;gap:8px}
+  .hdr{display:flex;justify-content:space-between;align-items:center}
+  .hdr h1{font-size:14px;font-weight:600}
+  .pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e6efff;color:#036}
+  .pill.ok{background:#dcfae3;color:#063}
+  .pill.err{background:#fce8e6;color:#a00}
+  form{display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px}
+  form label{font-size:11px;color:#555}
+  input{padding:5px 7px;border:1px solid #ccc;border-radius:3px;font:inherit;font-size:12px;width:100%}
+  input:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px #e6efff}
+  .row{display:flex;gap:6px;align-items:center}
+  .row input{flex:1}
+  .row .sm{width:60px;flex:0 0 60px}
+  button{padding:5px 12px;border:1px solid #1a73e8;background:#1a73e8;color:#fff;border-radius:3px;cursor:pointer;font:inherit;font-size:12px;font-weight:500}
+  button:hover{background:#1967d2}
+  button:disabled{opacity:.4;cursor:not-allowed;background:#bbb;border-color:#bbb}
+  button.danger{border-color:#c33;background:#fff;color:#c33;padding:2px 8px;font-size:11px;font-weight:400}
+  button.danger:hover{background:#fce8e6}
+  .list{flex:1;min-height:0;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:4px;padding:4px}
+  .item{display:flex;align-items:center;justify-content:space-between;padding:5px 6px;border-bottom:1px solid #eee;gap:8px}
+  .item:last-child{border:0}
+  .item .meta{flex:1;min-width:0}
+  .item .nm{font-size:12px;font-weight:600}
+  .item .src{font-size:10px;color:#888;font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tag{display:inline-block;padding:1px 5px;font-size:9px;border-radius:8px;margin-left:4px;vertical-align:middle}
+  .tag.locked{background:#eee;color:#555}
+  .tag.admin{background:#fff3cc;color:#7a5a00}
+  .tag.ext{background:#ffe7e0;color:#a04020}
+  .tag.paste{background:#e0f0ff;color:#036}
+  /* Mode toggle: URL ↔ paste-HTML. The active button gets a filled fill;
+   * inactive stays as a muted outline. Tab-strip-ish, in keeping with collar. */
+  .modes{display:flex;gap:2px;border-bottom:1px solid #ddd;margin-bottom:4px}
+  .modebtn{font:inherit;font-size:11px;padding:4px 10px;border:0;background:transparent;color:#666;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+  .modebtn.on{color:#036;border-bottom-color:#1a73e8}
+  textarea{padding:6px 8px;border:1px solid #ccc;border-radius:3px;font:11px/1.4 ui-monospace,monospace;width:100%;resize:vertical}
+  textarea:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px #e6efff}
+  small{color:#888;font-size:10px;font-weight:400}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Registry</h1>
+  <span class="pill" id="status">connecting…</span>
+</div>
+
+<form id="addForm">
+  <div class="modes">
+    <button type="button" class="modebtn on" data-mode="url">URL</button>
+    <button type="button" class="modebtn" data-mode="paste">Paste HTML</button>
+  </div>
+  <label>name <small>(a–z, 0–9, _ -)</small></label>
+  <input id="name" placeholder="testimages" autocomplete="off" required>
+  <div id="srcWrap">
+    <label>url <small>(uapps/x · http://localhost:* · https://...)</small></label>
+    <input id="src" placeholder="uapps/testimages.html" autocomplete="off">
+  </div>
+  <div id="htmlWrap" style="display:none">
+    <label>html <small>(paste a complete &lt;!doctype html&gt; document — runs as a blob: at HUB origin)</small></label>
+    <textarea id="html" rows="6" placeholder="<!doctype html>&#10;<html>...your uapp...</html>"></textarea>
+  </div>
+  <div class="row">
+    <input id="label" placeholder="label (optional)" autocomplete="off">
+    <input id="w" class="sm" type="number" placeholder="w" min="200" max="1200">
+    <input id="h" class="sm" type="number" placeholder="h" min="200" max="1200">
+    <button type="submit" id="addBtn" disabled>Add</button>
+  </div>
+</form>
+
+<div class="list" id="list"></div>
+
+<script>
+(function(){
+  'use strict';
+  var P = "bc.v0";
+  var s = new URLSearchParams(location.hash.slice(1)).get("s");
+  var $ = function(id){return document.getElementById(id);};
+  var $status = $("status"), $list = $("list"), $addBtn = $("addBtn"), $form = $("addForm");
+  var port = null, pending = new Map(), mode = "url";
+
+  /* URL ↔ Paste mode toggle. URL mode sends `src`, paste mode sends `html`
+   * which collar wraps in a Blob at HUB origin. */
+  document.querySelectorAll(".modebtn").forEach(function (b) {
+    b.onclick = function () {
+      mode = b.dataset.mode;
+      document.querySelectorAll(".modebtn").forEach(function (x) {
+        x.classList.toggle("on", x === b);
+      });
+      $("srcWrap").style.display  = (mode === "url")   ? "" : "none";
+      $("htmlWrap").style.display = (mode === "paste") ? "" : "none";
+    };
+  });
+
+  function setStatus(t, cls){ $status.textContent = t; $status.className = "pill " + (cls||""); }
+  function flash(msg, cls){
+    setStatus(msg, cls||"err");
+    setTimeout(function(){ if (port) setStatus("connected","ok"); }, 2500);
+  }
+
+  function call(op, payload){
+    return new Promise(function(resolve, reject){
+      if (!port) return reject(new Error("no port"));
+      var id = (crypto.randomUUID ? crypto.randomUUID() : ("r_"+Date.now()+Math.random()));
+      var t = setTimeout(function(){ pending.delete(id); reject(new Error("timeout")); }, 5000);
+      pending.set(id, {resolve:resolve, reject:reject, t:t});
+      port.postMessage(Object.assign({k:"ua", id:id, op:op}, payload||{}));
+    });
+  }
+
+  function refresh(){
+    call("list").then(function(items){
+      $list.innerHTML = "";
+      (items||[]).forEach(function(u){
+        var d = document.createElement("div"); d.className = "item";
+        var meta = document.createElement("div"); meta.className = "meta";
+        var nm = document.createElement("div"); nm.className = "nm";
+        nm.textContent = u.label + " ";
+        var sub = document.createElement("small"); sub.textContent = "(" + u.name + ")";
+        nm.appendChild(sub);
+        if (u.locked)   { var t1 = document.createElement("span"); t1.className = "tag locked"; t1.textContent = "built-in"; nm.appendChild(t1); }
+        if (u.admin)    { var t2 = document.createElement("span"); t2.className = "tag admin";  t2.textContent = "admin";    nm.appendChild(t2); }
+        if (u.external) { var t3 = document.createElement("span"); t3.className = "tag ext";    t3.textContent = "external"; nm.appendChild(t3); }
+        if (u.pasted)   { var t4 = document.createElement("span"); t4.className = "tag paste";  t4.textContent = "pasted";   nm.appendChild(t4); }
+        var src = document.createElement("div"); src.className = "src";
+        src.textContent = u.pasted ? "(pasted html — blob: at HUB origin)" : u.src;
+        meta.appendChild(nm); meta.appendChild(src);
+        d.appendChild(meta);
+        if (!u.locked){
+          var rm = document.createElement("button");
+          rm.className = "danger"; rm.type = "button"; rm.textContent = "remove";
+          rm.onclick = function(){
+            rm.disabled = true;
+            call("remove", {name: u.name}).then(refresh, function(e){
+              flash("remove failed: " + (e.message||e));
+              rm.disabled = false;
+            });
+          };
+          d.appendChild(rm);
+        }
+        $list.appendChild(d);
+      });
+    }, function(e){ flash("list failed: " + (e.message||e)); });
+  }
+
+  $form.onsubmit = function(ev){
+    ev.preventDefault();
+    var name = $("name").value.trim();
+    if (!name) { flash("name required"); return; }
+    var payload = { name: name };
+    if (mode === "paste") {
+      var html = $("html").value;
+      if (!html || !html.trim()) { flash("html required"); return; }
+      payload.html = html;
+    } else {
+      var src = $("src").value.trim();
+      if (!src) { flash("url required"); return; }
+      payload.src = src;
+    }
+    var lab = $("label").value.trim(); if (lab) payload.label = lab;
+    var w = +$("w").value, h = +$("h").value;
+    if (w || h) payload.size = { w: w || 460, h: h || 480 };
+    $addBtn.disabled = true;
+    call("add", payload).then(function(){
+      $("name").value=""; $("src").value=""; $("html").value=""; $("label").value=""; $("w").value=""; $("h").value="";
+      $addBtn.disabled = false;
+      refresh();
+    }, function(e){
+      flash("add failed: " + (e.message||e));
+      $addBtn.disabled = false;
+    });
+  };
+
+  function onPortMsg(e){
+    var d = e.data; if (!d) return;
+    if (d.k === "ur"){
+      var ent = pending.get(d.rt); if (!ent) return;
+      pending.delete(d.rt); clearTimeout(ent.t);
+      if (d.ok) ent.resolve(d.value);
+      else ent.reject(new Error(d.error||"err"));
+    }
+  }
+  function onPortReply(e){
+    var d = e.data;
+    if (!d || d.p !== P || d.k !== "port" || d.s !== s) return;
+    if (!e.ports || !e.ports[0]) { setStatus("no port","err"); return; }
+    window.removeEventListener("message", onPortReply);
+    port = e.ports[0]; port.onmessage = onPortMsg; port.start();
+    setStatus("connected","ok"); $addBtn.disabled = false;
+    refresh();
+    /* No vp post — collar owns layout. See chat.html for the rationale. */
+  }
+  window.addEventListener("message", onPortReply);
+  if (!s){ setStatus("no session","err"); return; }
+  if (window.parent === window){ setStatus("no parent","err"); return; }
+  window.parent.postMessage({p:P, s:s, k:"hi"}, "*");
+  setStatus("handshake…","");
+})();
+</script>
+</body>
+</html>

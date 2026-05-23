@@ -1,18 +1,8 @@
 {
   "generated_by": "release/steps/build_release.py",
-  "file_count": 28,
-  "total_bytes": 5305382,
+  "file_count": 38,
+  "total_bytes": 5467097,
   "files": [
-    {
-      "path": "README.md",
-      "size": 6073,
-      "sha256": "d91520b5b9636d13c8ec87f7cb241a33ecfab96025b6f91f241983d1859fff4a"
-    },
-    {
-      "path": "SAMPLE-CHAT_VIDEO_KIT.html",
-      "size": 31108,
-      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
-    },
     {
       "path": "assets/media/logo1_small_2cm.png",
       "size": 23175,
@@ -47,6 +37,56 @@
       "path": "assets/media/swipe 1mb webp.webp",
       "size": 1157960,
       "sha256": "063c6a274253a2f159250a3c64e69d8edac0e100a729ed2fb2083001aa52f8bf"
+    },
+    {
+      "path": "bookmarks/v1/bookmarklet.exit.src.js",
+      "size": 21329,
+      "sha256": "26f5e3b2a819a1f58db6e51f1320921966ecb3f740aa3abad5a72407f685664e"
+    },
+    {
+      "path": "bookmarks/v1/collar.html",
+      "size": 2383,
+      "sha256": "53782a813a671aa4529035b1aaae6c982e275a41c722775a0b52fca7526ed615"
+    },
+    {
+      "path": "bookmarks/v1/collar.js",
+      "size": 32239,
+      "sha256": "982ddc050a08aff1a8e74e33e4004bf3a162511e6e394aa8f9944056217f9cfa"
+    },
+    {
+      "path": "bookmarks/v1/favicon.ico",
+      "size": 15086,
+      "sha256": "1468a19cccc515f3de0a35cef271d24d6b3282d5c56b31de8036123edfdfff4c"
+    },
+    {
+      "path": "bookmarks/v1/hub.html",
+      "size": 665,
+      "sha256": "abebe525ebb02ec26b927978b6219726520f385a789c60f51fe9dda9865b1936"
+    },
+    {
+      "path": "bookmarks/v1/hub.js",
+      "size": 11901,
+      "sha256": "b04b18415d91d16e02ab0616fface37160e74eee6d042795e09843f761256109"
+    },
+    {
+      "path": "bookmarks/v1/index.html",
+      "size": 45057,
+      "sha256": "8d3e7b32571255c89e4df9fb5d8dee41b54a82e1e868562d0f2754b07aa95cef"
+    },
+    {
+      "path": "bookmarks/v1/uapps/add.html",
+      "size": 10567,
+      "sha256": "fb23770ed2b3c1c5e7afddabab38858a0da3c78b618ddb75b3e2f50ebaa74613"
+    },
+    {
+      "path": "bookmarks/v1/uapps/chat.html",
+      "size": 14785,
+      "sha256": "213bcff55b2adc4f3b62f7f82558aee1652eca90dc2c3f670449a01679e39060"
+    },
+    {
+      "path": "bookmarks/v1/uapps/testimages.html",
+      "size": 7703,
+      "sha256": "e5c8bf2365b918fa67a72f700c7dfb6f7f36c485d5ef8798724fd359ae788ed9"
     },
     {
       "path": "caps/base_pages/msg_send_kit.html",
@@ -142,6 +182,16 @@
       "path": "platokit_export_ui.html",
       "size": 32591,
       "sha256": "e96894c939a0b0eb9643de281a688f9c4084ff259a555b7d1a623bc4711552b2"
+    },
+    {
+      "path": "README.md",
+      "size": 6073,
+      "sha256": "d91520b5b9636d13c8ec87f7cb241a33ecfab96025b6f91f241983d1859fff4a"
+    },
+    {
+      "path": "SAMPLE-CHAT_VIDEO_KIT.html",
+      "size": 31108,
+      "sha256": "676a7e80e0f9cefbf5c7f972b01939321b453f38c219694f82760bab292a6c98"
     }
   ]
 }
