@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>PlatoKit: Exit</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<style>
+body{font:15px/1.55 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 18px;color:#111}
+a.bm{display:inline-block;background:#0a5;color:#fff;padding:10px 18px;border-radius:4px;
+     text-decoration:none;font-weight:bold;font-size:16px}
+a.bm:hover{background:#063}
+pre{background:#f3f3f3;border:1px solid #ddd;padding:10px;white-space:pre-wrap;word-break:break-all;
+    font:12px/1.45 ui-monospace,monospace;max-height:380px;overflow:auto}
+code{background:#f3f3f3;padding:1px 4px;border-radius:2px}
+.warn{background:#fff7d6;border:1px solid #d4b400;padding:10px 14px;border-radius:4px;margin:12px 0}
+.card{border:2px solid #0a5;border-radius:4px;padding:14px 18px;background:#f6fff9;margin:14px 0}
+.card h3{margin:0 0 6px;font-size:16px;color:#063}
+details{margin:10px 0} details summary{cursor:pointer;color:#06c;font-weight:bold}
+h2{margin-top:24px;font-size:18px}
+small{color:#666}
+</style></head><body>
+<h1>PlatoKit: Exit</h1>
+<p>A bookmarklet that injects a host-page panel + nested collar/uapp iframes.
+Audit the source below, then drag the green button onto your bookmarks bar.
+The body is frozen at install &mdash; server-side updates flow only through
+<code>collar.html</code> / <code>collar.js</code>, never the bookmark itself.</p>
+
+<div class="warn">
+<b>Read the source.</b> A bookmarklet runs with the privileges of the page
+you click it on. The trust anchor exists so you audit it once and never
+re-audit. The full source is in <code>&lt;details&gt;</code> below.
+</div>
+
+<div class="card">
+<h3>PlatoKit: Exit &nbsp; <span style="color:#063;font-weight:600">&#x25CF; live</span></h3>
+<p style="margin:6px 0"><b>HUB base:</b> <code>https://algchain.github.io/algkit/bookmarks/v1</code></p>
+<p style="margin:6px 0"><b>Will load:</b> <code>https://algchain.github.io/algkit/bookmarks/v1/collar.html</code>
+&rarr; <code>https://algchain.github.io/algkit/bookmarks/v1/collar.js</code></p>
+<p style="margin:10px 0 6px"><a class="bm" href="javascript:(function(){if(window.__bcrpc__){if(window.__bcrpc__.__bcReopen)window.__bcrpc__.__bcReopen();else%20window.__bcrpc__.scrollIntoView({block:%22center%22});return;}var%20HUB=%22https://algchain.github.io/algkit/bookmarks/v1%22;var%20P=%22bc.v0%22;var%20session=crypto.randomUUID();var%20COLLAR_TIMEOUT_MS=1500;var%20overlays=new%20Map();var%20CAPS={rd:{tier:%22user-grant%22,label:%22Read%20page%20text%22,handler:function(p){var%20sel=String(window.getSelection()||%22%22).trim();if(sel)return{text:sel.slice(0,65536)};var%20root=(p&amp;&amp;p.selector)?document.querySelector(p.selector):document.body;return{text:(root?root.innerText||%22%22:%22%22).slice(0,65536)};}},ov:{tier:%22user-grant%22,label:%22Overlay%20images%22,handler:function(p){var%20id=%22bc_o%22+(overlays.size+1);var%20img=document.createElement(%22img%22);img.src=p.url;img.alt=%22%22;img.referrerPolicy=%22no-referrer%22;img.style.cssText=%22position:fixed;left:%22+(p.x|0)+%22px;top:%22+(p.y|0)+%22px;%22+%22width:%22+(p.w|0)+%22px;height:%22+(p.h|0)+%22px;%22+%22opacity:%22+(p.o==null?1:+p.o)+%22;pointer-events:none;z-index:2147483000%22;document.body.appendChild(img);overlays.set(id,img);return{id:id};}},sc:{tier:%22user-grant%22,label:%22Scroll%20this%20page%22,handler:function(p){window.scrollBy({top:+p.top||0,behavior:%22smooth%22});return{ok:true};}},};var%20grants={};Object.keys(CAPS).forEach(function(c){if(CAPS[c].tier===%22user-grant%22)grants[c]=false;});var%20port=null,iframe=null,connected=false,collarTimer=null;var%20ui=document.createElement(%22div%22);ui.id=%22bcrpc-ui%22;var%20style=document.createElement(%22style%22);style.textContent=%22%23bcrpc-ui{position:fixed;right:12px;top:12px;width:360px;height:520px;background:%23fff;color:%23000;%22+%22border:1px%20solid%20%23000;padding:10px;z-index:2147483647;font:13px/1.4%20system-ui,sans-serif;%22+%22box-shadow:0%202px%208px%20rgba(0,0,0,.25);border-radius:4px;%22+%22display:flex;flex-direction:column;resize:both;overflow:auto;%22+%22min-width:280px;min-height:280px;max-width:96vw;max-height:96vh;user-select:none}%22+%22%23bcrpc-ui.bcrpc-min>*:not(.h){display:none}%22+%22%23bcrpc-ui.bcrpc-min%20.h{margin:0}%22+%22%23bcrpc-ui%20.h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;cursor:move;user-select:none}%22+%22%23bcrpc-ui%20.h%20b{font-size:14px}%22+%22%23bcrpc-ui%20.x{background:none;border:0;cursor:pointer;width:28px;height:28px;border-radius:14px;padding:0;color:%23999;font:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}%22+%22%23bcrpc-ui%20.x:hover{background:%23f0f0f0;color:%23000}%22+%22%23bcrpc-ui%20.perms-label{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:%23888;margin:6px%200%204px%201px;font-weight:500}%22+%22%23bcrpc-ui%20.chip{display:inline-block;border:1px%20solid%20%23aaa;background:%23fff;color:%23555;padding:3px%2010px;margin:2px%204px%202px%200;border-radius:14px;font:inherit;font-size:11px;cursor:pointer;line-height:1.3}%22+%22%23bcrpc-ui%20.chip:hover{border-color:%231a73e8;color:%231a73e8}%22+%22%23bcrpc-ui%20.chip.on{background:%231a73e8;border-color:%231a73e8;color:%23fff;box-shadow:0%200%200%202px%20%23e6efff}%22+%22%23bcrpc-ui%20.chip.ext{border-color:%233a9b50;color:%232c8f3b}%22+%22%23bcrpc-ui%20.chip.ext.on{background:%232c8f3b;border-color:%232c8f3b;color:%23fff;box-shadow:0%200%200%202px%20%23dcfae3}%22+%22%23bcrpc-status{margin:4px%200;font-size:12px;color:%23333}%22+%22%23bcrpc-status.err{color:%23b00}%23bcrpc-status.ok{color:%23063}%22+%22%23bcrpc-frame-wrap{flex:1;margin-top:8px;min-height:140px}%22+%22%23bcrpc-frame-wrap%20iframe{width:100%25;height:100%25;border:0;border-radius:3px;display:block;background:%23fff}%22;ui.appendChild(style);var%20head=document.createElement(%22div%22);head.className=%22h%22;var%20title=document.createElement(%22b%22);title.textContent=%22PlatoKit:%20Exit%20the%20Cave%22;title.title=%22Acting%20on%20%22+location.origin+%22%20·%20collar%20at%20%22+new%20URL(HUB).origin;var%20xbtn=document.createElement(%22button%22);xbtn.className=%22x%22;xbtn.textContent=%22×%22;xbtn.title=%22close%22;head.appendChild(title);head.appendChild(xbtn);ui.appendChild(head);var%20didDrag=false;head.addEventListener(%22pointerdown%22,function(e){if(e.target===xbtn)return;didDrag=false;var%20startX=e.clientX,startY=e.clientY;var%20off={x:e.clientX-ui.offsetLeft,y:e.clientY-ui.offsetTop};function%20mv(ev){if(!didDrag&amp;&amp;(Math.abs(ev.clientX-startX)>3||Math.abs(ev.clientY-startY)>3)){didDrag=true;}ui.style.left=(ev.clientX-off.x)+%22px%22;ui.style.top=(ev.clientY-off.y)+%22px%22;ui.style.right=%22auto%22;}function%20up(){document.removeEventListener(%22pointermove%22,mv);document.removeEventListener(%22pointerup%22,up);document.removeEventListener(%22pointercancel%22,up);}document.addEventListener(%22pointermove%22,mv);document.addEventListener(%22pointerup%22,up);document.addEventListener(%22pointercancel%22,up);});var%20status=document.createElement(%22div%22);status.id=%22bcrpc-status%22;status.textContent=%22connecting%20to%20collar…%22;ui.appendChild(status);function%20setStatus(msg,cls){status.textContent=msg;status.className=cls||%22%22;status.style.display=(cls===%22ok%22)?%22none%22:%22%22;}var%20permsLabel=document.createElement(%22div%22);permsLabel.className=%22perms-label%22;permsLabel.textContent=%22Choose%20page%20permissions:%22;ui.appendChild(permsLabel);var%20permsHost=document.createElement(%22div%22);ui.appendChild(permsHost);function%20makeChip(id,label){var%20c=document.createElement(%22button%22);c.type=%22button%22;c.className=%22chip%22;c.textContent=label;c.onclick=function(){grants[id]=!grants[id];c.classList.toggle(%22on%22,grants[id]);sendGrants();};return%20c;}Object.keys(CAPS).forEach(function(c){if(CAPS[c].tier!==%22user-grant%22)return;permsHost.appendChild(makeChip(c,CAPS[c].label));});var%20frameWrap=document.createElement(%22div%22);frameWrap.id=%22bcrpc-frame-wrap%22;ui.appendChild(frameWrap);xbtn.onclick=function(e){e&amp;&amp;e.stopPropagation();minimized?hidePanel():setMin(true);};iframe=document.createElement(%22iframe%22);iframe.src=HUB+%22/collar.html%23s=%22+session;iframe.referrerPolicy=%22no-referrer%22;frameWrap.appendChild(iframe);collarTimer=setTimeout(function(){if(!connected){setStatus(%22PlatoKit:%20Exit%20—%20collar%20unavailable%22,%22err%22);}},COLLAR_TIMEOUT_MS);function%20onHi(e){var%20d=e.data;if(!d||d.p!==P||d.k!==%22hi%22||d.s!==session)return;if(!iframe||e.source!==iframe.contentWindow)return;window.removeEventListener(%22message%22,onHi);clearTimeout(collarTimer);collarTimer=null;var%20ch=new%20MessageChannel();port=ch.port1;port.onmessage=onPortMsg;port.start();e.source.postMessage({p:P,s:session,k:%22port%22},%22*%22,[ch.port2]);connected=true;setStatus(%22connected%20·%20collar%20handshake%20complete%22,%22ok%22);sendGrants();}window.addEventListener(%22message%22,onHi);function%20reply(id,k,ex){if(port)port.postMessage(Object.assign({k:k,rt:id},ex));}function%20sendGrants(){if(port)port.postMessage({k:%22gr%22,pl:{grants:grants}});}function%20onPortMsg(e){var%20d=e.data;if(!d)return;if(d.k===%22iv%22){var%20cap=CAPS[d.c];if(!cap)return%20reply(d.id,%22er%22,{e:{c:%22NO_SUCH_CAP%22,m:d.c}});if(cap.tier===%22user-grant%22&amp;&amp;!grants[d.c]){return%20reply(d.id,%22er%22,{e:{c:%22DENIED%22,m:d.c}});}try{reply(d.id,%22rs%22,{pl:cap.handler(d.pl||{})});}catch(x){reply(d.id,%22er%22,{e:{c:%22THROWN%22,m:String((x&amp;&amp;x.message)||x)}});}return;}if(d.k===%22vp%22){var%20pl=d.pl||{};var%20maxW=Math.floor(window.innerWidth*0.96);var%20maxH=Math.floor(window.innerHeight*0.96);ui.style.transition=%22width%20.12s%20ease-out,%20height%20.12s%20ease-out%22;if(+pl.w)ui.style.width=Math.max(280,Math.min(maxW,+pl.w))+%22px%22;if(+pl.h)ui.style.height=Math.max(280,Math.min(maxH,+pl.h))+%22px%22;setTimeout(function(){ui.style.transition=%22%22;},180);return;}if(d.k===%22bye%22){hidePanel();return;}}var%20minimized=false,savedHeight=%22%22,savedWidth=%22%22;function%20setMin(yes){if(minimized===yes)return;if(yes){savedHeight=ui.style.height||%22%22;savedWidth=ui.style.width||%22%22;}var%20rect=ui.getBoundingClientRect();var%20vpw=document.documentElement.clientWidth;ui.style.right=(vpw-rect.right)+%22px%22;ui.style.left=%22auto%22;ui.style.transition=%22width%20.12s%20ease-out,%20height%20.12s%20ease-out%22;ui.classList.toggle(%22bcrpc-min%22,yes);ui.style.minHeight=ui.style.minWidth=yes?%220%22:%22%22;ui.style.height=yes?%2232px%22:savedHeight;ui.style.width=yes?%22140px%22:savedWidth;title.textContent=yes?%22PlatoKit%22:%22PlatoKit:%20Exit%20the%20Cave%22;setTimeout(function(){ui.style.transition=%22%22;},180);minimized=yes;}function%20hidePanel(){ui.style.display=%22none%22;}function%20reopen(){if(ui.style.display===%22none%22){ui.style.display=%22flex%22;ui.style.left=ui.style.top=ui.style.right=%22%22;setMin(false);ui.scrollIntoView({block:%22center%22});return;}setMin(!minimized);}ui.addEventListener(%22click%22,function(e){if(didDrag){didDrag=false;return;}if(minimized&amp;&amp;e.target!==xbtn)setMin(false);});ui.__bcReopen=reopen;document.body.appendChild(ui);window.__bcrpc__=ui;})();">&#x1F9E0; PlatoKit: Exit the Cave</a></p>
+<p style="margin:4px 0"><small>Drag this link onto your bookmarks bar, then click
+it on any page you want to escape.</small></p>
+<p style="margin:4px 0"><small>Bookmarklet size: <b>9148</b> chars minified.</small></p>
+</div>
+
+<h2>Layout</h2>
+<pre>host &lt;div&gt; (T1: bookmarklet body, your audit)
+&#x2514;&#x2500;&#x2500; iframe @ https://algchain.github.io/algkit/bookmarks/v1/collar.html (T2: trusted broker)
+    &#x2514;&#x2500;&#x2500; iframe @ https://algchain.github.io/algkit/bookmarks/v1/&lt;uapp&gt;.html (T3: capability UI)</pre>
+
+<details><summary>Show bookmarklet source (21228 chars)</summary>
+<pre>/* bookmarklet.exit.src.js — PlatoKit: Exit the Cave (v0.7.7 / v1+).
+ *
+ * The trust anchor. The user reads this once before installing; never changes
+ * thereafter. Updates land in collar.js at HUB origin (live), not here.
+ *
+ * Spec: ../spec_min_platokitexit.md (normative).
+ * Layout: host &lt;div> → collar iframe (HUB origin) → uapp iframe nested inside.
+ * The host page has no DOM handle to the uapp iframe.
+ *
+ * R6: collar required. If the 1500 ms handshake doesn't complete, stop.
+ * R7: two-tier caps. user-grant requires chip toggle; collar-only invocable
+ *     only from the collar (enforced in collar §5.1).
+ *
+ * v0.7.7 — persistent panel + two-step ×:
+ *   1st × click on a normal panel COLLAPSES it to a header-only strip
+ *   (&quot;PlatoKit: Exit the Cave   ×&quot;). The chrome and uapp iframe stay alive
+ *   but are clipped by overflow:hidden + a small height. Click anywhere on
+ *   the visible strip (except × itself) to restore the previous size.
+ *   2nd × click while minimized HIDES the panel completely (display:none).
+ *   Re-clicking the bookmark unhides + restores to the last user size.
+ *
+ *   The collar iframe, the active uapp, the message port, granted
+ *   permissions, overlays, and chat history all stay alive in the
+ *   background through every state — only the panel chrome's display
+ *   changes. No handshake, no vp round-trip, no blurp on any transition.
+ *
+ *   This eliminates the open/activate repeat-click resize blurp completely
+ *   without storing any persistent state on the host page. The &quot;memory&quot; is
+ *   just the live closure + DOM that already exist; reload/navigate/close-tab
+ *   still hard-resets everything (browser garbage-collects the host frame).
+ *
+ *   Trade-offs the user has accepted:
+ *     - Hidden-but-running uapps continue to execute JS in the background.
+ *       Puter.js stays loaded; chat.html keeps its iframe alive. The grant
+ *       chips' on-state still applies, so a hidden uapp could in principle
+ *       invoke a granted cap with no visual indicator. Mitigation if this
+ *       bites: surface a &quot;(active in: &lt;name>)&quot; hint when a hidden uapp
+ *       fires a cap. Not built; flagged in plan_v1_plus.md §3.2a (K1b).
+ *     - Grants do NOT auto-reset on hide. The user dismissed the panel,
+ *       not the session. To clear grants, untoggle the chips, or close the
+ *       tab. This trades the v0.7.6 &quot;fresh-session = fresh-grant&quot; property
+ *       for the persistence the user explicitly asked for.
+ *
+ *   Programmatic resizes (vp) are CSS-transitioned for ~120ms inline, so
+ *   the first session's paint→saved-size jump and any cross-uapp swap
+ *   animate instead of jolting. User-drag via resize:both stays snappy
+ *   because the transition is applied only on vp, then cleared.
+ *
+ * v1+ additions (forward-compat with v0.7 protocol, optional kinds only):
+ *   - k:&quot;vp&quot; — collar may push a viewport hint to resize the host panel
+ *     when the user swaps to a different uapp. Clamped to safe bounds here.
+ *     Old bookmarks ignore unknown kinds → graceful degradation.
+ *
+ * H1/H2/H4 security floors were attempted at v0.7.4 but reverted: the H2
+ * self-injection guard fires when the bookmark is dragged onto a page
+ * served from the HUB itself (common during local dev), and the sandbox
+ * attribute appears to interact badly with Puter.js popup auth. Re-attempt
+ * after a proper test pass — see plan_v1_plus.md §5 (H-series).
+ *
+ * Audit shortcut: read CAPS below. That's every DOM op the bookmark can do.
+ * Everything else is generic handshake + dispatch + chrome.
+ *
+ * No console.log in this file. Diagnostic output happens at T2/T3 frames;
+ * the host page's console stays clean.
+ */
+(function () {
+  if (window.__bcrpc__) {
+    /* Persistent panel (v0.7.7): closure stayed alive after a previous ×.
+     * Reopen unhides the panel — already sized, already connected, already
+     * in-session. This is the no-blurp path. */
+    if (window.__bcrpc__.__bcReopen) window.__bcrpc__.__bcReopen();
+    else window.__bcrpc__.scrollIntoView({block: &quot;center&quot;});
+    return;
+  }
+
+  /* HUB is the base URL the collar loads from. May be just an origin
+   * (http://localhost:8099) or include a path prefix
+   * (https://algchain.github.io/algkit/bookmarks/v1) — the bookmarklet
+   * just concatenates &quot;/collar.html&quot;. One bookmark variant per HUB base. */
+  var HUB = &quot;__HUB_ORIGIN__&quot;;
+  var P = &quot;bc.v0&quot;;
+  var session = crypto.randomUUID();
+  var COLLAR_TIMEOUT_MS = 1500;
+
+  /* §6.1 CAPS — every DOM op the bookmark can perform on the host page.
+   *   tier: &quot;user-grant&quot; → requires an on-state chip in the panel.
+   * Handlers do the DOM op only; per-cap validation lives in collar §5.4.
+   * Each handler keeps a small T1 floor (unconditional safety constraint). */
+  var overlays = new Map();
+  var CAPS = {
+    rd: { tier: &quot;user-grant&quot;, label: &quot;Read page text&quot;, handler: function (p) {
+      var sel = String(window.getSelection() || &quot;&quot;).trim();
+      if (sel) return {text: sel.slice(0, 65536)};                  /* T1 floor: 64 KiB */
+      var root = (p &amp;&amp; p.selector) ? document.querySelector(p.selector) : document.body;
+      return {text: (root ? root.innerText || &quot;&quot; : &quot;&quot;).slice(0, 65536)};
+    }},
+    ov: { tier: &quot;user-grant&quot;, label: &quot;Overlay images&quot;, handler: function (p) {
+      var id = &quot;bc_o&quot; + (overlays.size + 1);
+      var img = document.createElement(&quot;img&quot;);
+      img.src = p.url; img.alt = &quot;&quot;; img.referrerPolicy = &quot;no-referrer&quot;;
+      /* T1 floor: pointer-events:none + fixed z-index — no click capture. */
+      img.style.cssText = &quot;position:fixed;left:&quot; + (p.x|0) + &quot;px;top:&quot; + (p.y|0) + &quot;px;&quot; +
+        &quot;width:&quot; + (p.w|0) + &quot;px;height:&quot; + (p.h|0) + &quot;px;&quot; +
+        &quot;opacity:&quot; + (p.o == null ? 1 : +p.o) + &quot;;pointer-events:none;z-index:2147483000&quot;;
+      document.body.appendChild(img); overlays.set(id, img);
+      return {id: id};
+    }},
+    sc: { tier: &quot;user-grant&quot;, label: &quot;Scroll this page&quot;, handler: function (p) {
+      window.scrollBy({top: +p.top || 0, behavior: &quot;smooth&quot;});
+      return {ok: true};
+    }},
+  };
+
+  var grants = {};
+  Object.keys(CAPS).forEach(function (c) { if (CAPS[c].tier === &quot;user-grant&quot;) grants[c] = false; });
+
+  var port = null, iframe = null, connected = false, collarTimer = null;
+
+  /* ----- UI ----- */
+  var ui = document.createElement(&quot;div&quot;);
+  ui.id = &quot;bcrpc-ui&quot;;
+  var style = document.createElement(&quot;style&quot;);
+  /* resize:both gives the user a native bottom-right grip. Flex column makes
+   * the iframe fill the remaining height — resizing the panel resizes the hub. */
+  style.textContent =
+    &quot;#bcrpc-ui{position:fixed;right:12px;top:12px;width:360px;height:520px;background:#fff;color:#000;&quot; +
+    &quot;border:1px solid #000;padding:10px;z-index:2147483647;font:13px/1.4 system-ui,sans-serif;&quot; +
+    &quot;box-shadow:0 2px 8px rgba(0,0,0,.25);border-radius:4px;&quot; +
+    &quot;display:flex;flex-direction:column;resize:both;overflow:auto;&quot; +
+    &quot;min-width:280px;min-height:280px;max-width:96vw;max-height:96vh;user-select:none}&quot; +
+    /* Minimized strip: hide everything except the header. The class is the
+     * single switch; setMin toggles it. width/height/min-* live inline so
+     * the transition has explicit numeric endpoints to animate between. */
+    &quot;#bcrpc-ui.bcrpc-min>*:not(.h){display:none}&quot; +
+    &quot;#bcrpc-ui.bcrpc-min .h{margin:0}&quot; +
+    &quot;#bcrpc-ui .h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;cursor:move;user-select:none}&quot; +
+    &quot;#bcrpc-ui .h b{font-size:14px}&quot; +
+    /* Close button: borderless circular hover icon, not a boxed &quot;×&quot;. */
+    &quot;#bcrpc-ui .x{background:none;border:0;cursor:pointer;width:28px;height:28px;border-radius:14px;padding:0;color:#999;font:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}&quot; +
+    &quot;#bcrpc-ui .x:hover{background:#f0f0f0;color:#000}&quot; +
+    /* Permissions section label — small caps, muted, sits directly above the
+     * chip row. Tells the user that the chips ARE the permission switches,
+     * so a disabled tool button in a uapp doesn't read as &quot;broken&quot;. Quiet
+     * typography on purpose: the chips themselves are the loud element. */
+    &quot;#bcrpc-ui .perms-label{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#888;margin:6px 0 4px 1px;font-weight:500}&quot; +
+    /* Chip-style caps: muted outline = off, filled = granted. Live toggles, not an install-time checklist. */
+    &quot;#bcrpc-ui .chip{display:inline-block;border:1px solid #aaa;background:#fff;color:#555;padding:3px 10px;margin:2px 4px 2px 0;border-radius:14px;font:inherit;font-size:11px;cursor:pointer;line-height:1.3}&quot; +
+    &quot;#bcrpc-ui .chip:hover{border-color:#1a73e8;color:#1a73e8}&quot; +
+    &quot;#bcrpc-ui .chip.on{background:#1a73e8;border-color:#1a73e8;color:#fff;box-shadow:0 0 0 2px #e6efff}&quot; +
+    &quot;#bcrpc-ui .chip.ext{border-color:#3a9b50;color:#2c8f3b}&quot; +
+    &quot;#bcrpc-ui .chip.ext.on{background:#2c8f3b;border-color:#2c8f3b;color:#fff;box-shadow:0 0 0 2px #dcfae3}&quot; +
+    &quot;#bcrpc-status{margin:4px 0;font-size:12px;color:#333}&quot; +
+    &quot;#bcrpc-status.err{color:#b00}#bcrpc-status.ok{color:#063}&quot; +
+    &quot;#bcrpc-frame-wrap{flex:1;margin-top:8px;min-height:140px}&quot; +
+    &quot;#bcrpc-frame-wrap iframe{width:100%;height:100%;border:0;border-radius:3px;display:block;background:#fff}&quot;;
+  ui.appendChild(style);
+
+  var head = document.createElement(&quot;div&quot;); head.className = &quot;h&quot;;
+  var title = document.createElement(&quot;b&quot;);
+  title.textContent = &quot;PlatoKit: Exit the Cave&quot;;
+  /* Host + hub origins are in the tooltip — quiet by default, available on hover
+   * for the &quot;did I drag this on the right tab?&quot; safety check. */
+  title.title = &quot;Acting on &quot; + location.origin + &quot; · collar at &quot; + new URL(HUB).origin;
+  var xbtn = document.createElement(&quot;button&quot;); xbtn.className = &quot;x&quot;; xbtn.textContent = &quot;×&quot;; xbtn.title = &quot;close&quot;;
+  head.appendChild(title); head.appendChild(xbtn); ui.appendChild(head);
+
+  /* Drag-to-move via the header. Listen on document so the drag survives
+   * the pointer leaving the header — important in minimized state where
+   * the header is only 140×32 and a quick drag easily overshoots. Cleanup
+   * on pointerup AND pointercancel: without the latter, a browser-cancelled
+   * gesture (right-click, alt-tab, scroll, contextual interrupt) leaves mv
+   * attached and the panel follows the pointer indefinitely.
+   *
+   * didDrag is shared with the click-to-restore handler below. A drag is
+   * detected as soon as the pointer moves more than 3px from the down
+   * position; the trailing click event (browsers fire one after pointerup
+   * even after significant travel in some cases) is then suppressed so a
+   * drag-to-move on the minimized strip doesn't accidentally restore. */
+  var didDrag = false;
+  head.addEventListener(&quot;pointerdown&quot;, function (e) {
+    if (e.target === xbtn) return;
+    didDrag = false;
+    var startX = e.clientX, startY = e.clientY;
+    var off = {x: e.clientX - ui.offsetLeft, y: e.clientY - ui.offsetTop};
+    function mv(ev) {
+      if (!didDrag &amp;&amp;
+          (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) {
+        didDrag = true;
+      }
+      ui.style.left  = (ev.clientX - off.x) + &quot;px&quot;;
+      ui.style.top   = (ev.clientY - off.y) + &quot;px&quot;;
+      ui.style.right = &quot;auto&quot;;
+    }
+    function up() {
+      document.removeEventListener(&quot;pointermove&quot;,   mv);
+      document.removeEventListener(&quot;pointerup&quot;,     up);
+      document.removeEventListener(&quot;pointercancel&quot;, up);
+    }
+    document.addEventListener(&quot;pointermove&quot;,   mv);
+    document.addEventListener(&quot;pointerup&quot;,     up);
+    document.addEventListener(&quot;pointercancel&quot;, up);
+  });
+
+  var status = document.createElement(&quot;div&quot;); status.id = &quot;bcrpc-status&quot;;
+  status.textContent = &quot;connecting to collar…&quot;;
+  ui.appendChild(status);
+  /* Hide the status line when everything is good; only show when
+   * the user actually needs to know something (connecting / error). */
+  function setStatus(msg, cls) {
+    status.textContent = msg;
+    status.className = cls || &quot;&quot;;
+    status.style.display = (cls === &quot;ok&quot;) ? &quot;none&quot; : &quot;&quot;;
+  }
+
+  /* &quot;Choose page permissions:&quot; sits above the chip row (below the title bar
+   * and any status text). Pure label — non-interactive; the chips below
+   * are where the actual grant action happens. */
+  var permsLabel = document.createElement(&quot;div&quot;);
+  permsLabel.className = &quot;perms-label&quot;;
+  permsLabel.textContent = &quot;Choose page permissions:&quot;;
+  ui.appendChild(permsLabel);
+
+  var permsHost = document.createElement(&quot;div&quot;); ui.appendChild(permsHost);
+
+  /* Chip = live capability toggle. .on = granted; otherwise muted outline.
+   * Click toggles in place; sendGrants() pushes the full grant state to the
+   * collar so every bound uapp's `gr` view stays in sync.
+   *
+   * The set of chips is FIXED at install time — exactly the user-grant CAPS
+   * declared above. The bookmark deliberately exposes no channel for the
+   * collar (or anyone downstream) to inject new chips at runtime: the trust
+   * anchor's UI surface is what you see in this source, nothing more. If a
+   * future cap is needed, add it to CAPS and re-drag. */
+  function makeChip(id, label) {
+    var c = document.createElement(&quot;button&quot;);
+    c.type = &quot;button&quot;; c.className = &quot;chip&quot;;
+    c.textContent = label;
+    c.onclick = function () { grants[id] = !grants[id]; c.classList.toggle(&quot;on&quot;, grants[id]); sendGrants(); };
+    return c;
+  }
+
+  Object.keys(CAPS).forEach(function (c) {
+    if (CAPS[c].tier !== &quot;user-grant&quot;) return;
+    permsHost.appendChild(makeChip(c, CAPS[c].label));
+  });
+
+  var frameWrap = document.createElement(&quot;div&quot;); frameWrap.id = &quot;bcrpc-frame-wrap&quot;; ui.appendChild(frameWrap);
+
+  /* Two-step ×: normal→minimize, minimized→hide. stopPropagation prevents
+   * the click from bubbling to ui's restore handler. */
+  xbtn.onclick = function (e) { e &amp;&amp; e.stopPropagation(); minimized ? hidePanel() : setMin(true); };
+
+  /* ----- handshake ----- */
+  iframe = document.createElement(&quot;iframe&quot;);
+  iframe.src = HUB + &quot;/collar.html#s=&quot; + session;
+  iframe.referrerPolicy = &quot;no-referrer&quot;;
+  frameWrap.appendChild(iframe);
+
+  collarTimer = setTimeout(function () {
+    if (!connected) { setStatus(&quot;PlatoKit: Exit — collar unavailable&quot;, &quot;err&quot;); }
+  }, COLLAR_TIMEOUT_MS);
+
+  function onHi(e) {
+    var d = e.data;
+    if (!d || d.p !== P || d.k !== &quot;hi&quot; || d.s !== session) return;
+    if (!iframe || e.source !== iframe.contentWindow) return;       /* source pin */
+    window.removeEventListener(&quot;message&quot;, onHi);
+    clearTimeout(collarTimer); collarTimer = null;
+    var ch = new MessageChannel();
+    port = ch.port1;
+    port.onmessage = onPortMsg;
+    port.start();
+    e.source.postMessage({p: P, s: session, k: &quot;port&quot;}, &quot;*&quot;, [ch.port2]);
+    connected = true;
+    setStatus(&quot;connected · collar handshake complete&quot;, &quot;ok&quot;);
+    sendGrants();
+  }
+  window.addEventListener(&quot;message&quot;, onHi);
+
+  /* ----- port RPC ----- */
+  function reply(id, k, ex) { if (port) port.postMessage(Object.assign({k: k, rt: id}, ex)); }
+  function sendGrants() { if (port) port.postMessage({k: &quot;gr&quot;, pl: {grants: grants}}); }
+
+  function onPortMsg(e) {
+    var d = e.data; if (!d) return;
+    /* iv: invoke a capability. d.to is reserved (Q3) — single-target in v0.7. */
+    if (d.k === &quot;iv&quot;) {
+      var cap = CAPS[d.c];
+      if (!cap) return reply(d.id, &quot;er&quot;, {e: {c: &quot;NO_SUCH_CAP&quot;, m: d.c}});
+      if (cap.tier === &quot;user-grant&quot; &amp;&amp; !grants[d.c]) {
+        return reply(d.id, &quot;er&quot;, {e: {c: &quot;DENIED&quot;, m: d.c}});
+      }
+      try { reply(d.id, &quot;rs&quot;, {pl: cap.handler(d.pl || {})}); }
+      catch (x) { reply(d.id, &quot;er&quot;, {e: {c: &quot;THROWN&quot;, m: String((x &amp;&amp; x.message) || x)}}); }
+      return;
+    }
+    /* vp: collar pushes viewport hint (v1+ — uapp-swap). Clamped to safe
+     * bounds so a misbehaving collar/uapp can't reduce the panel to 1×1
+     * or grow it beyond the viewport. Unknown to v0.7 bookmarks (ignored).
+     *
+     * v0.7.7: brief inline transition smooths the resize. Applied only here
+     * so user-drag via resize:both stays snappy (no transition on arbitrary
+     * style.width changes). The 180ms cleanup beats the 120ms transition by
+     * a small margin; if a second vp arrives mid-animation the setTimeouts
+     * harmlessly stack and clear. */
+    if (d.k === &quot;vp&quot;) {
+      var pl = d.pl || {};
+      var maxW = Math.floor(window.innerWidth * 0.96);
+      var maxH = Math.floor(window.innerHeight * 0.96);
+      ui.style.transition = &quot;width .12s ease-out, height .12s ease-out&quot;;
+      if (+pl.w) ui.style.width  = Math.max(280, Math.min(maxW, +pl.w)) + &quot;px&quot;;
+      if (+pl.h) ui.style.height = Math.max(280, Math.min(maxH, +pl.h)) + &quot;px&quot;;
+      setTimeout(function () { ui.style.transition = &quot;&quot;; }, 180);
+      return;
+    }
+    /* px (extension permissions) is intentionally NOT handled here. v0.7.5
+     * and earlier accepted `{k:&quot;px&quot;, pl:{add,remove}}` from the collar to
+     * inject/remove chips with collar-controlled labels. That broke the
+     * bookmark's invariant of &quot;the chips you see are exactly what this
+     * source declares&quot; — a downstream component could fabricate a chip
+     * with arbitrary text in the trust-anchor panel. Removed in v0.7.6.
+     * Unknown kinds are dropped silently (forward-compat). */
+    if (d.k === &quot;bye&quot;) { hidePanel(); return; }
+  }
+
+  /* v0.7.7 lifecycle: × is two-step (normal → minimized → hidden). Nothing
+   * inside the panel tears down — port, grants, iframe, chat history all
+   * stay alive. Tab GC is the only real close.
+   *
+   * setMin(yes) does the chrome-only collapse/restore. The .bcrpc-min class
+   * hides every child but the header; inline width/height/min-* give the
+   * transition explicit numeric endpoints to animate between. The setTimeout
+   * clears the transition after the 120ms animation settles so user-drag
+   * via resize:both doesn't lag the cursor by 120ms.
+   *
+   * Title swaps to &quot;PlatoKit&quot; when minimized — the full string is too wide
+   * for the 140px strip and would either truncate or push × out of view. */
+  var minimized = false, savedHeight = &quot;&quot;, savedWidth = &quot;&quot;;
+  function setMin(yes) {
+    if (minimized === yes) return;
+    /* Pin the right edge to the panel's CURRENT right edge on BOTH
+     * directions of setMin:
+     *
+     *   - On minimize: strip shrinks in place; its right edge stays
+     *     exactly where the full panel's right edge was. Not toward
+     *     the screen corner.
+     *   - On restore: if the user dragged the minimized strip (the
+     *     drag handler sets left:Xpx, right:auto, switching anchor
+     *     to left-only), growing width back would extend rightward,
+     *     possibly off-screen. Re-pinning the right edge here forces
+     *     the width to grow LEFTWARD instead — top-right of the strip
+     *     stays put, panel restores in-place.
+     *
+     * Use document.documentElement.clientWidth (NOT window.innerWidth):
+     * for position:fixed elements, CSS `right:` is resolved against
+     * the viewport's content area, which EXCLUDES the vertical
+     * scrollbar. innerWidth INCLUDES it — using innerWidth would
+     * over-count by the scrollbar width and shift the panel ~15px left. */
+    if (yes) {
+      savedHeight = ui.style.height || &quot;&quot;;
+      savedWidth  = ui.style.width  || &quot;&quot;;
+    }
+    var rect = ui.getBoundingClientRect();
+    var vpw  = document.documentElement.clientWidth;
+    ui.style.right = (vpw - rect.right) + &quot;px&quot;;
+    ui.style.left  = &quot;auto&quot;;
+    ui.style.transition = &quot;width .12s ease-out, height .12s ease-out&quot;;
+    ui.classList.toggle(&quot;bcrpc-min&quot;, yes);
+    ui.style.minHeight = ui.style.minWidth = yes ? &quot;0&quot; : &quot;&quot;;
+    ui.style.height    = yes ? &quot;32px&quot;  : savedHeight;
+    ui.style.width     = yes ? &quot;140px&quot; : savedWidth;
+    title.textContent  = yes ? &quot;PlatoKit&quot; : &quot;PlatoKit: Exit the Cave&quot;;
+    setTimeout(function () { ui.style.transition = &quot;&quot;; }, 180);
+    minimized = yes;
+  }
+  function hidePanel() { ui.style.display = &quot;none&quot;; }
+  /* Bookmark re-click is a three-way toggle:
+   *
+   *   hidden                → unhide, snap to top-right default, full size
+   *   visible + full        → minimize
+   *   visible + minimized   → restore
+   *
+   * The hidden→unhide branch also clears inline left/top/right so the CSS
+   * rule's right:12;top:12 reapplies — drag is a within-session affordance,
+   * not a persistent placement. The visible-toggle branch keeps whatever
+   * position the panel currently has (drag-during-min/restore stays put). */
+  function reopen() {
+    if (ui.style.display === &quot;none&quot;) {
+      ui.style.display = &quot;flex&quot;;
+      ui.style.left = ui.style.top = ui.style.right = &quot;&quot;;
+      setMin(false);
+      ui.scrollIntoView({block: &quot;center&quot;});
+      return;
+    }
+    setMin(!minimized);
+  }
+  /* Click anywhere on the minimized strip → restore. xbtn handles itself
+   * (stopPropagation prevents this listener from firing on the × click).
+   * Drag-to-move on the header is excluded explicitly via didDrag —
+   * relying on browser &quot;click suppressed after significant travel&quot;
+   * behavior turned out unreliable for slow/short drags on the strip. */
+  ui.addEventListener(&quot;click&quot;, function (e) {
+    if (didDrag) { didDrag = false; return; }
+    if (minimized &amp;&amp; e.target !== xbtn) setMin(false);
+  });
+  ui.__bcReopen = reopen;
+
+  document.body.appendChild(ui);
+  window.__bcrpc__ = ui;
+})();
+</pre>
+</details>
+
+<details><summary>Show minified payload (9148 chars)</summary>
+<pre>javascript:(function(){if(window.__bcrpc__){if(window.__bcrpc__.__bcReopen)window.__bcrpc__.__bcReopen();else%20window.__bcrpc__.scrollIntoView({block:%22center%22});return;}var%20HUB=%22https://algchain.github.io/algkit/bookmarks/v1%22;var%20P=%22bc.v0%22;var%20session=crypto.randomUUID();var%20COLLAR_TIMEOUT_MS=1500;var%20overlays=new%20Map();var%20CAPS={rd:{tier:%22user-grant%22,label:%22Read%20page%20text%22,handler:function(p){var%20sel=String(window.getSelection()||%22%22).trim();if(sel)return{text:sel.slice(0,65536)};var%20root=(p&amp;&amp;p.selector)?document.querySelector(p.selector):document.body;return{text:(root?root.innerText||%22%22:%22%22).slice(0,65536)};}},ov:{tier:%22user-grant%22,label:%22Overlay%20images%22,handler:function(p){var%20id=%22bc_o%22+(overlays.size+1);var%20img=document.createElement(%22img%22);img.src=p.url;img.alt=%22%22;img.referrerPolicy=%22no-referrer%22;img.style.cssText=%22position:fixed;left:%22+(p.x|0)+%22px;top:%22+(p.y|0)+%22px;%22+%22width:%22+(p.w|0)+%22px;height:%22+(p.h|0)+%22px;%22+%22opacity:%22+(p.o==null?1:+p.o)+%22;pointer-events:none;z-index:2147483000%22;document.body.appendChild(img);overlays.set(id,img);return{id:id};}},sc:{tier:%22user-grant%22,label:%22Scroll%20this%20page%22,handler:function(p){window.scrollBy({top:+p.top||0,behavior:%22smooth%22});return{ok:true};}},};var%20grants={};Object.keys(CAPS).forEach(function(c){if(CAPS[c].tier===%22user-grant%22)grants[c]=false;});var%20port=null,iframe=null,connected=false,collarTimer=null;var%20ui=document.createElement(%22div%22);ui.id=%22bcrpc-ui%22;var%20style=document.createElement(%22style%22);style.textContent=%22%23bcrpc-ui{position:fixed;right:12px;top:12px;width:360px;height:520px;background:%23fff;color:%23000;%22+%22border:1px%20solid%20%23000;padding:10px;z-index:2147483647;font:13px/1.4%20system-ui,sans-serif;%22+%22box-shadow:0%202px%208px%20rgba(0,0,0,.25);border-radius:4px;%22+%22display:flex;flex-direction:column;resize:both;overflow:auto;%22+%22min-width:280px;min-height:280px;max-width:96vw;max-height:96vh;user-select:none}%22+%22%23bcrpc-ui.bcrpc-min>*:not(.h){display:none}%22+%22%23bcrpc-ui.bcrpc-min%20.h{margin:0}%22+%22%23bcrpc-ui%20.h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;cursor:move;user-select:none}%22+%22%23bcrpc-ui%20.h%20b{font-size:14px}%22+%22%23bcrpc-ui%20.x{background:none;border:0;cursor:pointer;width:28px;height:28px;border-radius:14px;padding:0;color:%23999;font:inherit;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}%22+%22%23bcrpc-ui%20.x:hover{background:%23f0f0f0;color:%23000}%22+%22%23bcrpc-ui%20.perms-label{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:%23888;margin:6px%200%204px%201px;font-weight:500}%22+%22%23bcrpc-ui%20.chip{display:inline-block;border:1px%20solid%20%23aaa;background:%23fff;color:%23555;padding:3px%2010px;margin:2px%204px%202px%200;border-radius:14px;font:inherit;font-size:11px;cursor:pointer;line-height:1.3}%22+%22%23bcrpc-ui%20.chip:hover{border-color:%231a73e8;color:%231a73e8}%22+%22%23bcrpc-ui%20.chip.on{background:%231a73e8;border-color:%231a73e8;color:%23fff;box-shadow:0%200%200%202px%20%23e6efff}%22+%22%23bcrpc-ui%20.chip.ext{border-color:%233a9b50;color:%232c8f3b}%22+%22%23bcrpc-ui%20.chip.ext.on{background:%232c8f3b;border-color:%232c8f3b;color:%23fff;box-shadow:0%200%200%202px%20%23dcfae3}%22+%22%23bcrpc-status{margin:4px%200;font-size:12px;color:%23333}%22+%22%23bcrpc-status.err{color:%23b00}%23bcrpc-status.ok{color:%23063}%22+%22%23bcrpc-frame-wrap{flex:1;margin-top:8px;min-height:140px}%22+%22%23bcrpc-frame-wrap%20iframe{width:100%25;height:100%25;border:0;border-radius:3px;display:block;background:%23fff}%22;ui.appendChild(style);var%20head=document.createElement(%22div%22);head.className=%22h%22;var%20title=document.createElement(%22b%22);title.textContent=%22PlatoKit:%20Exit%20the%20Cave%22;title.title=%22Acting%20on%20%22+location.origin+%22%20·%20collar%20at%20%22+new%20URL(HUB).origin;var%20xbtn=document.createElement(%22button%22);xbtn.className=%22x%22;xbtn.textContent=%22×%22;xbtn.title=%22close%22;head.appendChild(title);head.appendChild(xbtn);ui.appendChild(head);var%20didDrag=false;head.addEventListener(%22pointerdown%22,function(e){if(e.target===xbtn)return;didDrag=false;var%20startX=e.clientX,startY=e.clientY;var%20off={x:e.clientX-ui.offsetLeft,y:e.clientY-ui.offsetTop};function%20mv(ev){if(!didDrag&amp;&amp;(Math.abs(ev.clientX-startX)>3||Math.abs(ev.clientY-startY)>3)){didDrag=true;}ui.style.left=(ev.clientX-off.x)+%22px%22;ui.style.top=(ev.clientY-off.y)+%22px%22;ui.style.right=%22auto%22;}function%20up(){document.removeEventListener(%22pointermove%22,mv);document.removeEventListener(%22pointerup%22,up);document.removeEventListener(%22pointercancel%22,up);}document.addEventListener(%22pointermove%22,mv);document.addEventListener(%22pointerup%22,up);document.addEventListener(%22pointercancel%22,up);});var%20status=document.createElement(%22div%22);status.id=%22bcrpc-status%22;status.textContent=%22connecting%20to%20collar…%22;ui.appendChild(status);function%20setStatus(msg,cls){status.textContent=msg;status.className=cls||%22%22;status.style.display=(cls===%22ok%22)?%22none%22:%22%22;}var%20permsLabel=document.createElement(%22div%22);permsLabel.className=%22perms-label%22;permsLabel.textContent=%22Choose%20page%20permissions:%22;ui.appendChild(permsLabel);var%20permsHost=document.createElement(%22div%22);ui.appendChild(permsHost);function%20makeChip(id,label){var%20c=document.createElement(%22button%22);c.type=%22button%22;c.className=%22chip%22;c.textContent=label;c.onclick=function(){grants[id]=!grants[id];c.classList.toggle(%22on%22,grants[id]);sendGrants();};return%20c;}Object.keys(CAPS).forEach(function(c){if(CAPS[c].tier!==%22user-grant%22)return;permsHost.appendChild(makeChip(c,CAPS[c].label));});var%20frameWrap=document.createElement(%22div%22);frameWrap.id=%22bcrpc-frame-wrap%22;ui.appendChild(frameWrap);xbtn.onclick=function(e){e&amp;&amp;e.stopPropagation();minimized?hidePanel():setMin(true);};iframe=document.createElement(%22iframe%22);iframe.src=HUB+%22/collar.html%23s=%22+session;iframe.referrerPolicy=%22no-referrer%22;frameWrap.appendChild(iframe);collarTimer=setTimeout(function(){if(!connected){setStatus(%22PlatoKit:%20Exit%20—%20collar%20unavailable%22,%22err%22);}},COLLAR_TIMEOUT_MS);function%20onHi(e){var%20d=e.data;if(!d||d.p!==P||d.k!==%22hi%22||d.s!==session)return;if(!iframe||e.source!==iframe.contentWindow)return;window.removeEventListener(%22message%22,onHi);clearTimeout(collarTimer);collarTimer=null;var%20ch=new%20MessageChannel();port=ch.port1;port.onmessage=onPortMsg;port.start();e.source.postMessage({p:P,s:session,k:%22port%22},%22*%22,[ch.port2]);connected=true;setStatus(%22connected%20·%20collar%20handshake%20complete%22,%22ok%22);sendGrants();}window.addEventListener(%22message%22,onHi);function%20reply(id,k,ex){if(port)port.postMessage(Object.assign({k:k,rt:id},ex));}function%20sendGrants(){if(port)port.postMessage({k:%22gr%22,pl:{grants:grants}});}function%20onPortMsg(e){var%20d=e.data;if(!d)return;if(d.k===%22iv%22){var%20cap=CAPS[d.c];if(!cap)return%20reply(d.id,%22er%22,{e:{c:%22NO_SUCH_CAP%22,m:d.c}});if(cap.tier===%22user-grant%22&amp;&amp;!grants[d.c]){return%20reply(d.id,%22er%22,{e:{c:%22DENIED%22,m:d.c}});}try{reply(d.id,%22rs%22,{pl:cap.handler(d.pl||{})});}catch(x){reply(d.id,%22er%22,{e:{c:%22THROWN%22,m:String((x&amp;&amp;x.message)||x)}});}return;}if(d.k===%22vp%22){var%20pl=d.pl||{};var%20maxW=Math.floor(window.innerWidth*0.96);var%20maxH=Math.floor(window.innerHeight*0.96);ui.style.transition=%22width%20.12s%20ease-out,%20height%20.12s%20ease-out%22;if(+pl.w)ui.style.width=Math.max(280,Math.min(maxW,+pl.w))+%22px%22;if(+pl.h)ui.style.height=Math.max(280,Math.min(maxH,+pl.h))+%22px%22;setTimeout(function(){ui.style.transition=%22%22;},180);return;}if(d.k===%22bye%22){hidePanel();return;}}var%20minimized=false,savedHeight=%22%22,savedWidth=%22%22;function%20setMin(yes){if(minimized===yes)return;if(yes){savedHeight=ui.style.height||%22%22;savedWidth=ui.style.width||%22%22;}var%20rect=ui.getBoundingClientRect();var%20vpw=document.documentElement.clientWidth;ui.style.right=(vpw-rect.right)+%22px%22;ui.style.left=%22auto%22;ui.style.transition=%22width%20.12s%20ease-out,%20height%20.12s%20ease-out%22;ui.classList.toggle(%22bcrpc-min%22,yes);ui.style.minHeight=ui.style.minWidth=yes?%220%22:%22%22;ui.style.height=yes?%2232px%22:savedHeight;ui.style.width=yes?%22140px%22:savedWidth;title.textContent=yes?%22PlatoKit%22:%22PlatoKit:%20Exit%20the%20Cave%22;setTimeout(function(){ui.style.transition=%22%22;},180);minimized=yes;}function%20hidePanel(){ui.style.display=%22none%22;}function%20reopen(){if(ui.style.display===%22none%22){ui.style.display=%22flex%22;ui.style.left=ui.style.top=ui.style.right=%22%22;setMin(false);ui.scrollIntoView({block:%22center%22});return;}setMin(!minimized);}ui.addEventListener(%22click%22,function(e){if(didDrag){didDrag=false;return;}if(minimized&amp;&amp;e.target!==xbtn)setMin(false);});ui.__bcReopen=reopen;document.body.appendChild(ui);window.__bcrpc__=ui;})();</pre>
+</details>
+
+<h2>Files</h2>
+<ul>
+  <li><a href="bookmarklet.exit.src.js"><code>bookmarklet.exit.src.js</code></a> &mdash; trust anchor.</li>
+  <li><a href="collar.html"><code>collar.html</code></a> + <a href="collar.js"><code>collar.js</code></a> &mdash; T2 broker.</li>
+  <li><a href="hub.html"><code>hub.html</code></a> + <a href="hub.js"><code>hub.js</code></a> &mdash; T3 sample UI.</li>
+</ul>
+</body></html>

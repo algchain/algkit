@@ -1,0 +1,169 @@
+<!doctype html>
+<!--@platokit-uapp
+name: testimages
+kind: demo
+version: 0.1.0
+peer: collar (bc.v0)
+caps_invoked:
+  - ov
+viewport_hint:
+  w: 360
+  h: 360
+description: Sample uapp that exercises the `ov` overlay capability. Demo flow
+  end-to-end: open Add → name=testimages url=/uapps/testimages.html → switch
+  to the new tab → enable "Overlay images" in the host panel → click Place.
+  Fetches random images from picsum.photos (https:, allowed by ov validator)
+  and asks the bookmark to overlay them on the host page. The bookmark's
+  validator clamps dimensions and counts; positions go off-screen safely if
+  the host viewport is small.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PlatoKit · TestImages</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+<meta name="referrer" content="no-referrer">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font:13px/1.45 system-ui,sans-serif;color:#111;background:#fafafa;display:flex;flex-direction:column;padding:12px;gap:10px}
+  .hdr{display:flex;justify-content:space-between;align-items:center}
+  .hdr h1{font-size:14px;font-weight:600}
+  .pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e6efff;color:#036}
+  .pill.ok{background:#dcfae3;color:#063}
+  .pill.err{background:#fce8e6;color:#a00}
+  .pill.warn{background:#fff3cc;color:#7a5a00}
+  .row{display:flex;gap:6px;align-items:center}
+  button{padding:6px 12px;border:1px solid #1a73e8;background:#1a73e8;color:#fff;border-radius:4px;cursor:pointer;font:inherit;font-size:12px;font-weight:500}
+  button:hover{background:#1967d2}
+  button:disabled{opacity:.4;cursor:not-allowed;background:#bbb;border-color:#bbb}
+  input[type=number]{width:60px;padding:4px 6px;border:1px solid #ccc;border-radius:3px;font:inherit;font-size:12px}
+  .log{flex:1;min-height:0;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:4px;padding:6px;font:11px/1.4 ui-monospace,monospace;color:#444}
+  .log .ok{color:#063}
+  .log .err{color:#a00}
+  small{color:#888;font-size:11px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>TestImages <small>(demo)</small></h1>
+  <span class="pill" id="status">connecting…</span>
+</div>
+
+<div class="row">
+  <span>Place</span>
+  <input id="count" type="number" min="1" max="20" value="5">
+  <span>random images on host page</span>
+  <button id="go" disabled title="Calls ov capability via collar — requires &lsquo;Overlay images&rsquo; chip in the host panel.">Place</button>
+</div>
+
+<div class="log" id="log"></div>
+
+<script>
+(function(){
+  'use strict';
+  var P = "bc.v0";
+  var s = new URLSearchParams(location.hash.slice(1)).get("s");
+  var $ = function(id){return document.getElementById(id);};
+  var $status = $("status"), $log = $("log"), $go = $("go");
+  /* port:    MessagePort to the collar (bound after the bc.v0 handshake)
+   * grants:  current capability grant map, refreshed by `gr` from collar
+   * pending: id → {resolve,reject,t}, one entry per in-flight `iv`
+   * seed:    counter feeding picsum's ?random=N — keeps each fetch unique
+   *          so the browser doesn't dedupe and we get genuinely new images. */
+  var port = null, grants = {}, pending = new Map(), seed = 1;
+
+  function setStatus(t, cls){ $status.textContent = t; $status.className = "pill " + (cls||""); }
+  function log(line, cls){
+    var d = document.createElement("div"); d.className = cls || ""; d.textContent = line;
+    $log.appendChild(d); $log.scrollTop = $log.scrollHeight;
+  }
+  function refresh(){
+    if (!port){ $go.disabled = true; return; }
+    if (grants.ov){ $go.disabled = false; setStatus("ready","ok"); }
+    else { $go.disabled = true; setStatus("enable Overlay images","warn"); }
+  }
+
+  function call(cap, payload){
+    return new Promise(function(resolve, reject){
+      if (!port) return reject(new Error("no port"));
+      var id = (crypto.randomUUID ? crypto.randomUUID() : "r_"+Date.now()+Math.random());
+      var t = setTimeout(function(){ pending.delete(id); reject(new Error("timeout")); }, 5000);
+      pending.set(id, {resolve:resolve, reject:reject, t:t});
+      port.postMessage({k:"iv", id:id, c:cap, pl:payload||{}});
+    });
+  }
+
+  $go.onclick = function(){
+    /* Clamp count to 1..20 — the bookmark caps total overlays at 50 too
+     * (COUNT_CAP in collar §5.4), so keeping per-click below 20 leaves
+     * headroom for repeat clicks before the cap kicks in. */
+    var n = Math.max(1, Math.min(20, +$("count").value || 5));
+    $go.disabled = true;
+    log("Placing " + n + " image(s)…");
+    var i = 0;
+    /* Sequential placement — each `ov` waits for its rs/er before issuing
+     * the next. Keeps the log readable and avoids hammering the bookmark
+     * with N parallel calls. If one fails (e.g. ov chip flipped off
+     * mid-run) we stop the run rather than barreling through errors. */
+    function placeOne(){
+      if (i >= n){ $go.disabled = !grants.ov; return; }
+      i++;
+      /* Random size in [120, 240]px and random origin in a 700×500 area.
+       * The bookmark's overlay is position:fixed with pointer-events:none,
+       * so off-screen placements just fall outside the viewport harmlessly —
+       * no clipping needed here. */
+      var w = 120 + ((Math.random()*120)|0);
+      var h = 120 + ((Math.random()*120)|0);
+      var x = (Math.random() * 700) | 0;
+      var y = (Math.random() * 500) | 0;
+      /* picsum.photos returns a random image per ?random= value; without it
+       * the browser would 304-cache the same image. seed++ guarantees fresh. */
+      var url = "https://picsum.photos/" + w + "/" + h + "?random=" + (seed++);
+      call("ov", {url:url, x:x, y:y, w:w, h:h, o:0.85}).then(function(r){
+        log("  ✓ " + (r && r.id) + " @ " + x + "," + y + " (" + w + "×" + h + ")", "ok");
+        placeOne();
+      }, function(e){
+        log("  ✗ " + (e.code || e.message || e), "err");
+        $go.disabled = !grants.ov;
+      });
+    }
+    placeOne();
+  };
+
+  /* Port messages: gr (grant snapshot, every chip toggle), rs (result),
+   * er (error). Unknown kinds are ignored — forward-compat with v1+. */
+  function onPortMsg(e){
+    var d = e.data; if (!d) return;
+    if (d.k === "gr"){ grants = (d.pl && d.pl.grants) || {}; refresh(); return; }
+    if (d.k === "rs" || d.k === "er"){
+      var ent = pending.get(d.rt); if (!ent) return;
+      pending.delete(d.rt); clearTimeout(ent.t);
+      if (d.k === "rs") ent.resolve(d.pl);
+      else { var err = new Error((d.e&&d.e.c)||"er"); err.code = d.e&&d.e.c; ent.reject(err); }
+    }
+  }
+  /* bc.v0 handshake stage 2: collar sends {k:"port"} with a transferred
+   * MessagePort. Same shape as chat.html / hub.js — see spec_collar.md §3. */
+  function onPortReply(e){
+    var d = e.data;
+    if (!d || d.p !== P || d.k !== "port" || d.s !== s) return;
+    if (!e.ports || !e.ports[0]) { setStatus("no port","err"); return; }
+    window.removeEventListener("message", onPortReply);
+    port = e.ports[0]; port.onmessage = onPortMsg; port.start();
+    refresh();
+    /* No vp post — the collar drops uapp-side vp now. Layout is collar-
+     * driven via savedLayouts + the per-uapp registry size. */
+  }
+  window.addEventListener("message", onPortReply);
+  if (!s){ setStatus("no session","err"); return; }
+  if (window.parent === window){ setStatus("no parent","err"); return; }
+  /* Stage 1: announce ourselves to the parent (collar). Collar pairs the
+   * source window with this uapp's name and replies via onPortReply. */
+  window.parent.postMessage({p:P, s:s, k:"hi"}, "*");
+  setStatus("handshake…","");
+})();
+</script>
+</body>
+</html>

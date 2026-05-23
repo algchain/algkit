@@ -1,0 +1,340 @@
+<!doctype html>
+<!--@platokit-uapp
+name: chat
+kind: chat-llm
+version: 0.1.0
+peer: collar (bc.v0)
+caps_invoked:
+  - rd
+viewport_hint:
+  w: 540
+  h: 640
+description: Lean LLM chat uapp. Talks to the collar via port (bc.v0). Single
+  Puter.js model; "Read page" invokes rd via port to inject host page text as
+  context for the next prompt. Multi-turn — sends running message history to
+  puter.ai.chat() each turn (24 KiB soft char budget; oldest pair-evicts).
+  Not 1:1 stateless. No hub registration, no tab relay. History is per-iframe
+  lifetime (no S1 persistence yet).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PlatoKit · chat</title>
+<meta http-equiv="Content-Security-Policy"
+  content="default-src 'none'; script-src 'self' https://js.puter.com 'unsafe-inline'; connect-src https://api.puter.com https://*.puter.com; style-src 'self' 'unsafe-inline'; img-src data: blob:; child-src https://puter.com">
+<meta name="referrer" content="no-referrer">
+<script src="https://js.puter.com/v2/"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font:13px/1.45 system-ui,sans-serif;color:#111;background:#fafafa;display:flex;flex-direction:column;padding:10px;gap:8px}
+  .hdr{display:flex;justify-content:space-between;align-items:center}
+  .hdr h1{font-size:15px;font-weight:600}
+  .pill{font-size:11px;padding:2px 8px;border-radius:10px;background:#e6efff;color:#036}
+  .pill.ok{background:#dcfae3;color:#063}
+  .pill.err{background:#fce8e6;color:#a00}
+  .pill.warn{background:#fff7d6;color:#7a5a00}
+  .ctxbar{display:flex;gap:6px;align-items:center;font-size:12px;color:#555;padding:5px 8px;background:#fff;border:1px solid #ddd;border-radius:4px}
+  .ctxbar.has{background:#f1f8ff;border-color:#c9e0fa;color:#036}
+  .chat{flex:1;min-height:0;overflow-y:auto;background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px}
+  .msg{margin-bottom:8px;padding:7px 9px;border-radius:5px;line-height:1.45}
+  .msg.user{background:#eaf3ff;border-left:3px solid #1a73e8}
+  .msg.ai{background:#eafaef;border-left:3px solid #2c8f3b}
+  .msg.sys{background:#fff7d6;border-left:3px solid #d4a000;color:#7a5a00;font-size:12px}
+  .msg.err{background:#fce8e6;border-left:3px solid #c33;color:#a00;font-size:12px}
+  .msg .who{font-size:10px;text-transform:uppercase;color:#777;margin-bottom:2px;letter-spacing:.5px}
+  .row{display:flex;gap:6px}
+  .row input[type=text]{flex:1;padding:7px 9px;border:1px solid #ccc;border-radius:4px;font:inherit;outline:none}
+  .row input:focus{border-color:#1a73e8;box-shadow:0 0 0 2px #e6efff}
+  button{padding:6px 12px;border:1px solid #1a73e8;background:#1a73e8;color:#fff;border-radius:4px;cursor:pointer;font:inherit;font-size:12px;font-weight:500}
+  button:hover{background:#1967d2}
+  button.alt{background:#fff;color:#1a73e8}
+  button.alt:hover{background:#f1f8ff}
+  button:disabled{opacity:.4;cursor:not-allowed;background:#bbb;border-color:#bbb;color:#fff}
+  .tools{display:flex;gap:6px;flex-wrap:wrap}
+  small{color:#888;font-size:11px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>PlatoKit · chat <small>(lean)</small></h1>
+  <span class="pill" id="status">connecting…</span>
+</div>
+
+<div class="ctxbar" id="ctxbar" style="display:none"></div>
+
+<div class="chat" id="chat"></div>
+
+<div class="row">
+  <input id="input" type="text" placeholder="Send a message…" autocomplete="off">
+  <button id="send" disabled>Send</button>
+</div>
+
+<div class="tools">
+  <button class="alt" id="readpage" disabled title="Reads the host page text and stages it as one-shot context for the next message. Requires &lsquo;Read page text&rsquo; chip in the host panel.">📄 Read page</button>
+  <button class="alt" id="clearctx" disabled>Clear context</button>
+  <button class="alt" id="clearchat">Clear chat</button>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var P = "bc.v0";
+  var s = new URLSearchParams(location.hash.slice(1)).get("s");
+  var $chat = document.getElementById("chat");
+  var $input = document.getElementById("input");
+  var $send = document.getElementById("send");
+  var $status = document.getElementById("status");
+  var $readpage = document.getElementById("readpage");
+  var $clearctx = document.getElementById("clearctx");
+  var $clearchat = document.getElementById("clearchat");
+  var $ctxbar = document.getElementById("ctxbar");
+
+  var port = null;
+  var grants = {};
+  var pending = new Map();
+  var stagedPageContext = "";
+  var stagedPageOrigin = "";
+  var authed = false;
+
+  /* Conversation history fed back to the LLM each turn.
+   *
+   * Shape: [{role:"user"|"assistant", content:string}, ...] — the message-array
+   * form puter.ai.chat() accepts directly. We chose this over a flat 1:1
+   * "single fresh prompt" style because the user explicitly does NOT want
+   * stateless one-shot turns: each new user message should arrive with the
+   * preceding turns as conversational context.
+   *
+   * Crop strategy. We keep a soft char budget (HIST_CHAR_BUDGET). When the
+   * history exceeds it we drop the OLDEST turn(s) — preferring to drop a
+   * user+assistant pair so the remaining transcript still alternates cleanly.
+   * The freshest two turns are always kept (so the very-large-message edge
+   * case at least preserves the immediate exchange). No summarization yet —
+   * that's a future addition; for v1+ a hard char budget is plenty.
+   *
+   * Page context. When the user clicks "Read page" we still stage text and
+   * inline it into the *next* user turn (same as before). Once it's in the
+   * history array it lives there until the cropper evicts it — which means
+   * later turns can reference "the page" without re-reading. That's the
+   * natural improvement falling out of having history at all. */
+  var history = [];
+  var HIST_CHAR_BUDGET = 24000;
+
+  function setStatus(txt, cls){
+    $status.textContent = txt;
+    $status.className = "pill " + (cls||"");
+    /* Hide the pill entirely on the "all good" state — only surface
+     * pills for handshake, thinking, or error states. */
+    $status.style.display = (cls === "ok") ? "none" : "";
+  }
+  function refresh(){
+    var on = !!port;
+    $send.disabled = !on;
+    $readpage.disabled = !(on && grants.rd);
+    $readpage.title = grants.rd ? "Read host page text and stage as context for next message"
+      : "Tick 'Read page text' in the host panel to enable";
+    $clearctx.disabled = !stagedPageContext;
+  }
+  function addMsg(txt, cls, who){
+    var d = document.createElement("div"); d.className = "msg "+cls;
+    if (who){ var w=document.createElement("div"); w.className="who"; w.textContent=who; d.appendChild(w); }
+    var b=document.createElement("div"); b.textContent=txt; d.appendChild(b);
+    $chat.appendChild(d); $chat.scrollTop = $chat.scrollHeight;
+    return b;
+  }
+  function updMsg(el, txt){ el.textContent = txt; $chat.scrollTop = $chat.scrollHeight; }
+  function setCtx(text, origin){
+    stagedPageContext = text||""; stagedPageOrigin = origin||"";
+    if (stagedPageContext){
+      $ctxbar.style.display = "";
+      $ctxbar.className = "ctxbar has";
+      $ctxbar.innerHTML = "📄 <b>"+ stagedPageContext.length +" chars</b> staged · sent with next message";
+    } else {
+      $ctxbar.style.display = "none";
+    }
+    refresh();
+  }
+
+  /* ---- port RPC ---- */
+  function call(cap, payload, timeoutMs){
+    return new Promise(function(resolve, reject){
+      if (!port) return reject(new Error("no port"));
+      var id = (crypto.randomUUID ? crypto.randomUUID() : ("r_"+Date.now()+Math.random()));
+      var timer = setTimeout(function(){ pending.delete(id); reject(new Error("timeout")); }, timeoutMs||15000);
+      pending.set(id, {resolve:resolve, reject:reject, timer:timer});
+      port.postMessage({k:"iv", id:id, c:cap, pl:payload||{}});
+    });
+  }
+  function onPortMsg(e){
+    var d = e.data; if (!d) return;
+    if (d.k === "gr"){
+      grants = (d.pl && d.pl.grants) || {};
+      refresh();
+      return;
+    }
+    if (d.k === "rs" || d.k === "er"){
+      var ent = pending.get(d.rt); if (!ent) return;
+      pending.delete(d.rt); clearTimeout(ent.timer);
+      if (d.k === "rs") ent.resolve(d.pl);
+      else { var err = new Error((d.e&&d.e.c)||"er"); err.code = d.e&&d.e.c; ent.reject(err); }
+      return;
+    }
+    if (d.k === "bye"){
+      try{ port.close(); }catch(_){}
+      port = null; setStatus("bookmark closed","err"); refresh();
+    }
+  }
+
+  /* ---- handshake (same as hub.js) ---- */
+  function onPortReply(e){
+    var d = e.data;
+    if (!d || d.p !== P || d.k !== "port" || d.s !== s) return;
+    if (!e.ports || !e.ports[0]) { setStatus("no port","err"); return; }
+    window.removeEventListener("message", onPortReply);
+    port = e.ports[0];
+    port.onmessage = onPortMsg;
+    port.start();
+    setStatus("connected","ok");
+    refresh();
+    /* Note: we do NOT post {k:"vp"} from here. The collar drops uapp-side
+     * vp now (panel size is collar-driven via savedLayouts + registry).
+     * Sending one would be a no-op at best and clobber a saved layout
+     * at worst — see change_log 2026-05-22. */
+  }
+  window.addEventListener("message", onPortReply);
+  if (!s){ setStatus("no session","err"); return; }
+  if (window.parent === window){ setStatus("no parent","err"); return; }
+  window.parent.postMessage({p:P, s:s, k:"hi"}, "*");
+  setStatus("handshake…","warn");
+
+  /* ---- Read page ---- */
+  $readpage.onclick = function(){
+    $readpage.disabled = true;
+    call("rd", {}).then(function(r){
+      var txt = (r && r.text) || "";
+      setCtx(txt, "host page");
+      addMsg("Captured " + txt.length + " chars from host page. Included with your next message.", "sys");
+    }, function(err){
+      addMsg("Read page failed: " + (err.code || err.message), "err");
+      refresh();
+    });
+  };
+
+  $clearctx.onclick = function(){ setCtx("",""); addMsg("Page context cleared.", "sys"); };
+  /* Clear chat also clears the history fed to the LLM — without this, the
+   * visible transcript would empty but the model would still see prior turns
+   * on the next ask(), which is surprising and defeats the button. */
+  $clearchat.onclick = function(){ $chat.innerHTML = ""; history = []; };
+
+  /* ---- LLM ---- */
+  function ensureAuth(){
+    if (authed) return Promise.resolve();
+    if (!window.puter || !puter.ai){
+      return Promise.reject(new Error("Puter.js not loaded"));
+    }
+    /* puter.ai.chat() triggers Puter's own popup auth on first call. We just
+     * mark authed after the first successful call. */
+    return Promise.resolve();
+  }
+
+  /* Compose the user-turn content. Staged page context (one-shot from the
+   * "Read page" button) is folded inline into THIS turn's content. Once
+   * pushed onto history it stays visible to subsequent turns until the
+   * cropper evicts it. */
+  function buildUserContent(userText){
+    if (!stagedPageContext) return userText;
+    var header = "[page context from " + (stagedPageOrigin||"host page") + ", " + stagedPageContext.length + " chars]\n";
+    return header + stagedPageContext + "\n\n[user]\n" + userText;
+  }
+
+  /* Soft-budget cropper. Drops oldest turns until total chars ≤ budget,
+   * preferring to drop a user+assistant pair so the remaining transcript
+   * keeps clean alternation. Always preserves the freshest two turns
+   * (the in-flight user turn + the previous assistant reply at minimum)
+   * even if they alone exceed the budget — a single huge message is the
+   * model's problem to handle, not ours to silently truncate. */
+  function cropHistory(){
+    function totalChars(){
+      var n = 0;
+      for (var i = 0; i < history.length; i++) n += history[i].content.length;
+      return n;
+    }
+    while (history.length > 2 && totalChars() > HIST_CHAR_BUDGET){
+      history.shift();                                     // drop oldest (user)
+      if (history.length > 2 && history[0].role === "assistant"){
+        history.shift();                                   // drop its assistant reply too
+      }
+    }
+  }
+
+  async function ask(userText){
+    addMsg(userText, "user", "you" + (stagedPageContext ? " (+ page context)" : ""));
+    $send.disabled = true; $input.value = "";
+    setStatus("thinking…","warn");
+    var hadCtx = !!stagedPageContext;
+
+    /* Push the user turn onto history BEFORE calling, so the model sees it
+     * as the last entry. cropHistory runs after the push so this turn is
+     * preserved even if it's huge (see preservation rule above). */
+    history.push({role: "user", content: buildUserContent(userText)});
+    cropHistory();
+
+    var aiCell = addMsg("", "ai", "assistant");
+    try{
+      await ensureAuth();
+      /* puter.ai.chat accepts a message array directly — same shape we keep
+       * in history. No system prompt for now; can be added by prepending a
+       * {role:"system", content:...} entry to the call without disturbing
+       * what we store in history. */
+      var resp = await puter.ai.chat(history, {stream:true});
+      authed = true;
+      var full = "";
+      if (resp && typeof resp[Symbol.asyncIterator] === "function"){
+        for await (var part of resp){
+          var chunk = (part && part.text) || (part && part.message && part.message.content) || "";
+          full += chunk; updMsg(aiCell, full);
+        }
+      } else {
+        full = (resp && (resp.text || (resp.message && resp.message.content))) || String(resp||"");
+        updMsg(aiCell, full);
+      }
+      if (!full) updMsg(aiCell, "(empty response)");
+      /* Record the assistant's reply in history so the next turn sees it.
+       * Empty replies are not pushed — they'd just confuse a future turn
+       * (model would see "(empty response)" as if it actually said that). */
+      if (full) history.push({role: "assistant", content: full});
+      cropHistory();
+      setStatus("connected","ok");
+      if (hadCtx) setCtx("", "");
+    } catch (e){
+      var msg = e && e.message ? e.message : String(e);
+      aiCell.parentNode.classList.remove("ai");
+      aiCell.parentNode.classList.add("err");
+      updMsg(aiCell, "LLM error: " + msg);
+      setStatus("error","err");
+      /* On error, roll the failed user turn back out of history. Otherwise
+       * the next attempt would see two consecutive user turns (the failed
+       * one + the retry) and the cropper might prune the older successful
+       * turns to make room. */
+      if (history.length && history[history.length-1].role === "user"){
+        history.pop();
+      }
+    } finally {
+      $send.disabled = !port;
+      refresh();
+    }
+  }
+
+  function trySend(){
+    var t = $input.value.trim();
+    if (!t || !port) return;
+    ask(t);
+  }
+  $send.onclick = trySend;
+  $input.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); trySend(); }});
+
+})();
+</script>
+</body>
+</html>
