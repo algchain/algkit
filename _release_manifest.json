@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 39,
-  "total_bytes": 5504423,
+  "total_bytes": 5502869,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -75,8 +75,8 @@
     },
     {
       "path": "bookmarks/v1/README.md",
-      "size": 34108,
-      "sha256": "acfae3982112b020e01a8d2f159e3a6298fe40826f12808fd28cb56080cc90df"
+      "size": 32554,
+      "sha256": "3b716405fb194398839a834ba4f62328a0c2c907c2cce09da78de04d58954111"
     },
     {
       "path": "bookmarks/v1/uapps/add.html",
