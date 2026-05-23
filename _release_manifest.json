@@ -1,7 +1,7 @@
 {
   "generated_by": "release/steps/build_release.py",
   "file_count": 39,
-  "total_bytes": 5502869,
+  "total_bytes": 5502878,
   "files": [
     {
       "path": "assets/media/logo1_small_2cm.png",
@@ -85,8 +85,8 @@
     },
     {
       "path": "bookmarks/v1/uapps/chat.html",
-      "size": 18003,
-      "sha256": "a0c00b72482a1c4ea9a575f3b0f203c8df35527af73f7fe711323200536d06bd"
+      "size": 18012,
+      "sha256": "f5a8d3872ecff1ca260cb3398eb4ee94943f15a95493ec2087a3d04f9bdb06b3"
     },
     {
       "path": "bookmarks/v1/uapps/testimages.html",
